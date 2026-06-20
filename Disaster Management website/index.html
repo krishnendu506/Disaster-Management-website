@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ResQNet × DisasterCare PRO — Disaster Management Platform</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Playfair+Display:wght@600;700;800;900&family=Barlow+Condensed:wght@300;400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+<style>
+/* =====================================================
+   DESIGN TOKENS — unified palette
+   ===================================================== */
+:root {
+  /* Core */
+  --bg:           #07101f;
+  --panel:        #0d1a2e;
+  --surface:      #112236;
+  --surface-alt:  #0e1e34;
+  --border:       rgba(46,140,200,0.18);
+  --border-solid: #1a3550;
+
+  /* Sky-blue system */
+  --sky-deep:   #1060a0;
+  --sky-mid:    #2080c8;
+  --sky-base:   #38a8e0;
+  --sky-light:  #70c8f0;
+  --sky-pale:   #a8dcf8;
+  --sky-mist:   rgba(56,168,224,0.12);
+  --sky-cloud:  rgba(56,168,224,0.06);
+
+  /* Accents */
+  --accent:     #f97316;
+  --accent-glow:rgba(249,115,22,0.35);
+  --red:        #ef4444;
+  --yellow:     #eab308;
+  --green:      #22c55e;
+  --teal:       #0d9488;
+  --coral:      #e8623a;
+  --crimson:    #dc2626;
+  --amber:      #f59e0b;
+
+  /* Text */
+  --text:       #e0f0fa;
+  --text-sub:   #8ec8e8;
+  --muted:      #4a7a9b;
+
+  /* Nav */
+  --nav-h:      64px;
+
+  /* Shadows */
+  --shadow-sm:  0 2px 12px rgba(0,20,60,0.4);
+  --shadow-md:  0 8px 32px rgba(0,20,60,0.55);
+  --shadow-lg:  0 20px 60px rgba(0,20,60,0.7);
+
+  /* Misc */
+  --radius:     12px;
+  --radius-lg:  20px;
+  --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+
+  font-family: 'Source Sans 3', 'Barlow Condensed', sans-serif;
+}
+
+/* =====================================================
+   RESET & BASE
+   ===================================================== */
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h)+40px);}
+body{background:var(--bg);color:var(--text);min-height:100vh;font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+
+/* Noise texture overlay */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:0.35;
+}
+
+/* =====================================================
+   TICKER
+   ===================================================== */
+#alert-ticker{
+  position:fixed;top:0;width:100%;z-index:3000;
+  background:linear-gradient(90deg,var(--sky-deep),#0d4a80,var(--sky-deep));
+  border-bottom:1.5px solid rgba(56,168,224,0.35);
+  padding:7px 0;overflow:hidden;
+  font-size:12.5px;font-weight:600;letter-spacing:.4px;
+}
+.ticker-track{display:flex;animation:ticker-scroll 36s linear infinite;white-space:nowrap;width:max-content;}
+#alert-ticker:hover .ticker-track{animation-play-state:paused;}
+.ticker-item{padding:0 44px;display:inline-flex;align-items:center;gap:10px;color:rgba(255,255,255,.92);}
+.ticker-badge{
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);
+  border-radius:4px;padding:2px 9px;font-size:10.5px;letter-spacing:1px;font-weight:700;
+  font-family:'Share Tech Mono',monospace;
+}
+@keyframes ticker-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* =====================================================
+   SCROLL PROGRESS
+   ===================================================== */
+#scroll-progress{
+  position:fixed;top:40px;left:0;height:2px;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--sky-base),var(--teal));
+  z-index:2999;transition:width .08s linear;
+}
+
+/* =====================================================
+   NAVBAR
+   ===================================================== */
+#main-nav{
+  position:fixed;top:40px;width:100%;z-index:2900;height:var(--nav-h);
+  background:rgba(7,16,31,0.92);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  display:flex;align-items:center;justify-content:space-between;padding:0 32px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.4);
+}
+.nav-brand{
+  font-family:'Playfair Display',serif;font-size:22px;font-weight:800;
+  text-decoration:none;display:flex;align-items:center;gap:4px;
+  letter-spacing:.5px;
+}
+.brand-res{color:var(--sky-light);}
+.brand-q{color:#fff;}
+.brand-net{color:var(--sky-pale);opacity:.75;}
+.brand-sep{color:var(--accent);margin:0 8px;opacity:.7;font-family:'Share Tech Mono',monospace;font-size:14px;}
+.brand-dcp{color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:2px;}
+
+.nav-links{display:flex;align-items:center;gap:0;}
+.nav-section-label{
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);padding:0 14px;border-right:1px solid var(--border);
+  height:var(--nav-h);display:flex;align-items:center;font-weight:600;
+  font-family:'Share Tech Mono',monospace;
+}
+.nav-links a{
+  color:rgba(255,255,255,.65);padding:0 13px;height:var(--nav-h);
+  display:flex;align-items:center;text-decoration:none;
+  font-size:13px;font-weight:500;transition:color var(--transition),background var(--transition);
+  border-bottom:2px solid transparent;white-space:nowrap;letter-spacing:.3px;
+}
+.nav-links a:hover{color:#fff;background:rgba(255,255,255,.06);border-bottom-color:var(--sky-base);}
+.nav-links .divider{width:1px;height:22px;background:var(--border);margin:0 4px;}
+.nav-right{display:flex;align-items:center;gap:10px;}
+.nav-pulse{display:inline-block;width:7px;height:7px;background:var(--red);border-radius:50%;margin-right:6px;animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
+
+/* SOS/Init quick buttons */
+.btn-nav{
+  padding:7px 14px;border:none;border-radius:6px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;transition:all var(--transition);
+}
+.btn-nav-accent{background:var(--accent);color:#fff;}
+.btn-nav-accent:hover{background:#ea6c00;transform:translateY(-1px);}
+.btn-nav-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.4);}
+.btn-nav-red:hover{background:rgba(239,68,68,.25);}
+
+/* Hamburger */
+#hamburger{
+  display:none;background:rgba(255,255,255,.08);border:1px solid var(--border);
+  color:#fff;width:36px;height:36px;border-radius:8px;cursor:pointer;
+  font-size:18px;align-items:center;justify-content:center;
+}
+#mobile-menu{
+  display:none;position:fixed;top:calc(40px + var(--nav-h));left:0;right:0;
+  background:rgba(7,16,31,0.97);z-index:2800;padding:16px;
+  flex-direction:column;gap:4px;border-bottom:1px solid var(--border);
+  max-height:calc(100vh - 40px - var(--nav-h));overflow-y:auto;
+  backdrop-filter:blur(16px);
+}
+#mobile-menu.open{display:flex;}
+#mobile-menu a{
+  color:rgba(255,255,255,.8);padding:10px 14px;text-decoration:none;
+  border-radius:8px;font-size:14px;font-weight:500;transition:background var(--transition);
+  border-left:2px solid transparent;
+}
+#mobile-menu a:hover{background:rgba(255,255,255,.07);color:#fff;border-left-color:var(--sky-base);}
+#mobile-menu .mob-section{color:var(--muted);font-size:10px;letter-spacing:2px;padding:8px 14px 4px;font-family:'Share Tech Mono',monospace;text-transform:uppercase;}
+
+/* =====================================================
+   SECTION LAYOUT
+   ===================================================== */
+.pt-nav{padding-top:calc(40px + var(--nav-h) + 60px);}
+
+.section-wrap{max-width:1280px;margin:0 auto;padding:80px 28px;}
+.section-wrap-wide{max-width:100%;padding:80px 40px;}
+
+.section-label{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--sky-mist);border:1.5px solid rgba(56,168,224,0.3);
+  color:var(--sky-light);padding:4px 14px;border-radius:999px;
+  font-size:10.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;
+  margin-bottom:16px;font-family:'Share Tech Mono',monospace;
+}
+.section-heading{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(26px,3.5vw,46px);font-weight:800;
+  color:var(--text);letter-spacing:-.5px;line-height:1.08;margin-bottom:12px;
+}
+.section-sub{font-size:16.5px;color:var(--muted);max-width:560px;line-height:1.75;font-weight:300;}
+.rule-divider{width:48px;height:3px;background:linear-gradient(90deg,var(--sky-base),var(--accent));border-radius:999px;margin:18px 0 32px;}
+
+/* Shared section separator */
+.wave-sep{
+  width:100%;line-height:0;overflow:hidden;
+  background:transparent;
+}
+.wave-sep svg{display:block;width:100%;}
+
+/* =====================================================
+   HERO
+   ===================================================== */
+#hero{
+  min-height:100vh;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#030c1a 0%,#071528 40%,#0a2040 70%,#0c2850 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:120px 24px 80px;
+}
+.hero-grid-overlay{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(56,168,224,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,168,224,0.05) 1px, transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+  pointer-events:none;
+}
+.hero-glow{
+  position:absolute;top:20%;left:50%;transform:translateX(-50%);
+  width:700px;height:500px;
+  background:radial-gradient(ellipse, rgba(56,168,224,0.12) 0%, rgba(249,115,22,0.04) 50%, transparent 70%);
+  pointer-events:none;
+}
+.hero-particles{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+.particle{position:absolute;border-radius:50%;background:rgba(255,255,255,.55);animation:float-up linear infinite;}
+@keyframes float-up{from{transform:translateY(100vh) scale(0);opacity:0}10%{opacity:1}90%{opacity:1}to{transform:translateY(-10vh) scale(1);opacity:0}}
+
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(56,168,224,0.12);border:1px solid rgba(56,168,224,0.35);
+  color:var(--sky-light);padding:7px 20px;border-radius:999px;
+  font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;
+  margin-bottom:28px;animation:fade-in .8s ease both;
+  font-family:'Share Tech Mono',monospace;
+}
+.hero-badge .live-dot{width:6px;height:6px;background:var(--red);border-radius:50%;animation:pulse 1.2s infinite;}
+
+.hero h1{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(38px,7vw,88px);font-weight:900;
+  line-height:1.0;letter-spacing:-2px;
+  color:#fff;text-shadow:0 4px 40px rgba(0,0,0,.4);
+  animation:fade-up .9s ease .1s both;
+  margin-bottom:22px;
+}
+.h1-accent-coral{color:var(--accent);}
+.h1-accent-sky{color:var(--sky-light);}
+
+.hero-sub{
+  font-size:clamp(15px,2vw,19px);color:rgba(255,255,255,.6);
+  max-width:520px;margin:0 auto 36px;font-weight:300;
+  animation:fade-up .9s ease .25s both;
+}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;animation:fade-up .9s ease .4s both;}
+.btn-hero-primary{
+  padding:14px 36px;background:var(--accent);color:#fff;border:none;
+  border-radius:999px;font-size:14.5px;font-weight:700;cursor:pointer;
+  text-decoration:none;letter-spacing:.5px;
+  box-shadow:0 8px 32px var(--accent-glow);
+  transition:transform var(--transition),box-shadow var(--transition),background var(--transition);
+}
+.btn-hero-primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px var(--accent-glow);background:#ea6c00;}
+.btn-hero-secondary{
+  padding:14px 36px;background:rgba(255,255,255,.08);color:#fff;
+  border:1.5px solid rgba(255,255,255,.25);border-radius:999px;
+  font-size:14.5px;font-weight:600;cursor:pointer;text-decoration:none;
+  transition:background var(--transition),border-color var(--transition);
+  backdrop-filter:blur(8px);letter-spacing:.5px;
+}
+.btn-hero-secondary:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.5);}
+.btn-hero-danger{
+  padding:14px 28px;background:rgba(239,68,68,.15);color:var(--red);
+  border:1.5px solid rgba(239,68,68,.4);border-radius:999px;
+  font-size:14.5px;font-weight:700;cursor:pointer;text-decoration:none;
+  transition:all var(--transition);font-family:'Share Tech Mono',monospace;
+  letter-spacing:1px;
+}
+.btn-hero-danger:hover{background:rgba(239,68,68,.25);border-color:var(--red);}
+
+/* Hero stats */
+.hero-stats{
+  display:flex;gap:48px;flex-wrap:wrap;justify-content:center;
+  margin-top:60px;animation:fade-up .9s ease .55s both;
+  padding-top:48px;border-top:1px solid rgba(255,255,255,.08);
+}
+.hero-stat .number{font-family:'Playfair Display',serif;font-size:clamp(28px,4vw,44px);font-weight:800;color:#fff;}
+.hero-stat .label{font-size:11px;color:rgba(255,255,255,.45);letter-spacing:2px;text-transform:uppercase;margin-top:4px;font-family:'Share Tech Mono',monospace;}
+
+/* Scroll indicator */
+.scroll-indicator{
+  position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  color:rgba(255,255,255,.35);font-size:10px;letter-spacing:2px;
+  animation:fade-in 1.5s ease 1s both;font-family:'Share Tech Mono',monospace;
+}
+.scroll-dot{width:4px;height:4px;background:rgba(255,255,255,.5);border-radius:50%;animation:scroll-bounce 1.6s ease infinite;}
+@keyframes scroll-bounce{0%,100%{transform:translateY(0);opacity:.3}50%{transform:translateY(10px);opacity:1}}
+
+@keyframes fade-up{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+
+/* =====================================================
+   MISSION BANNER
+   ===================================================== */
+#mission{
+  background:linear-gradient(135deg,var(--sky-deep) 0%,#083870 60%,var(--sky-mid) 100%);
+  position:relative;overflow:hidden;
+}
+#mission::before{
+  content:'';position:absolute;inset:0;
+  background:url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M0 0h40v40H0V0zm40 40h40v40H40V40z'/%3E%3C/g%3E%3C/svg%3E");
+  pointer-events:none;
+}
+.mission-inner{max-width:860px;margin:0 auto;padding:80px 28px;text-align:center;position:relative;}
+.mission-inner h2{font-family:'Playfair Display',serif;font-size:clamp(26px,4vw,48px);font-weight:800;color:#fff;margin-bottom:14px;letter-spacing:-.5px;}
+.mission-inner p{color:rgba(255,255,255,.65);font-size:17px;font-weight:300;max-width:600px;margin:0 auto;}
+.impact-row{display:flex;justify-content:center;flex-wrap:wrap;margin-top:52px;border-top:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15);}
+.impact-item{flex:1;min-width:140px;padding:32px 20px;text-align:center;border-right:1px solid rgba(255,255,255,.15);}
+.impact-item:last-child{border-right:none;}
+.impact-num{font-family:'Playfair Display',serif;font-size:clamp(34px,5vw,52px);font-weight:800;color:#fff;line-height:1;}
+.impact-label{font-size:11px;color:rgba(255,255,255,.5);margin-top:7px;letter-spacing:2px;text-transform:uppercase;font-family:'Share Tech Mono',monospace;}
+
+/* =====================================================
+   DISASTERCARE PRO MODULE
+   ===================================================== */
+#disastercare{background:var(--bg);position:relative;}
+.dcp-header{
+  text-align:center;padding:80px 28px 40px;
+  background:linear-gradient(180deg,var(--bg) 0%,var(--panel) 100%);
+}
+.dcp-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);
+  color:var(--accent);padding:4px 14px;border-radius:999px;
+  font-size:10.5px;letter-spacing:2.5px;text-transform:uppercase;
+  margin-bottom:16px;font-family:'Share Tech Mono',monospace;font-weight:700;
+}
+/* The DCP dashboard */
+.dcp-dashboard{
+  display:grid;grid-template-columns:300px 1fr;
+  min-height:680px;border:1px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;
+  margin:0 28px 80px;box-shadow:var(--shadow-lg);
+}
+.dcp-aside{
+  background:var(--panel);border-right:1px solid var(--border);
+  padding:18px;overflow-y:auto;
+}
+.dcp-map-col{display:flex;flex-direction:column;background:var(--surface);}
+
+/* DCP Sidebar pieces */
+.side-section{margin-bottom:18px;}
+.side-title{
+  font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted);
+  letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;
+  padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+/* Risk badge */
+.risk-badge{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px 14px 16px;border-radius:10px;
+  font-family:'Share Tech Mono',monospace;font-size:2rem;letter-spacing:4px;font-weight:bold;
+  border:2px solid var(--border);background:#050e1c;margin-bottom:10px;
+  transition:background .5s,border-color .5s,box-shadow .5s;position:relative;overflow:hidden;
+}
+.risk-badge .risk-label{font-size:.58rem;letter-spacing:3px;margin-bottom:6px;opacity:.65;text-transform:uppercase;}
+.risk-badge .risk-sub{font-size:.62rem;letter-spacing:.8px;margin-top:6px;opacity:.75;font-family:'Barlow Condensed',sans-serif;text-align:center;}
+.risk-badge.STANDBY{color:#64748b;border-color:#1e293b;background:#050e1c;}
+.risk-badge.LOW{color:#fff;border-color:#16a34a;background:linear-gradient(135deg,#14532d,#166534);box-shadow:0 0 28px rgba(34,197,94,.3);}
+.risk-badge.MEDIUM{color:#fff;border-color:#ca8a04;background:linear-gradient(135deg,#713f12,#854d0e);box-shadow:0 0 28px rgba(234,179,8,.3);}
+.risk-badge.HIGH{color:#fff;border-color:#b91c1c;background:linear-gradient(135deg,#7f1d1d,#991b1b);animation:riskPulse 1s infinite;}
+@keyframes riskPulse{0%,100%{box-shadow:0 0 24px rgba(239,68,68,.4)}50%{box-shadow:0 0 52px rgba(239,68,68,.75)}}
+
+/* Threat chips */
+.threat-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(14,30,52,0.9);border:1px solid var(--border);
+  border-radius:4px;padding:4px 8px;font-size:.76rem;margin:3px 3px 3px 0;
+  font-family:'Share Tech Mono',monospace;color:var(--text-sub);
+}
+.threat-chip.active{background:#1c0a0a;border-color:var(--red);color:var(--red);}
+.threat-chip.warn{background:#1c160a;border-color:var(--yellow);color:var(--yellow);}
+
+/* Event log */
+.log-item{
+  padding:8px 10px;border-left:2px solid var(--border);margin-bottom:6px;
+  font-size:.78rem;line-height:1.5;background:#050e1c;border-radius:0 4px 4px 0;
+}
+.log-item.high{border-color:var(--red);}
+.log-item.med{border-color:var(--yellow);}
+.log-item.low{border-color:var(--green);}
+.log-time{font-family:'Share Tech Mono',monospace;font-size:.63rem;color:var(--muted);}
+
+/* DCP Buttons */
+.dcp-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+.dcp-btn{
+  padding:10px 8px;border:none;border-radius:6px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;transition:all var(--transition);
+}
+.dcp-btn-danger{background:var(--red);color:#fff;}
+.dcp-btn-danger:hover{background:#dc2626;transform:translateY(-1px);}
+.dcp-btn-blue{background:var(--sky-mid);color:#fff;}
+.dcp-btn-blue:hover{background:var(--sky-deep);}
+.dcp-btn-start{
+  background:var(--accent);color:#fff;width:100%;padding:13px;
+  border:none;border-radius:8px;font-family:'Barlow Condensed',sans-serif;
+  font-size:1rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  cursor:pointer;margin-bottom:14px;transition:all var(--transition);
+}
+.dcp-btn-start:hover{background:#ea6c00;transform:translateY(-1px);}
+
+/* Map */
+#dcpMap{height:400px;flex-shrink:0;border-bottom:1px solid var(--border);}
+.leaflet-tile{filter:brightness(.55) invert(1) hue-rotate(180deg) saturate(.5)}
+.leaflet-container{background:#05101e}
+.leaflet-popup-content-wrapper{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.leaflet-popup-tip{background:var(--surface)}
+
+/* Alert feed */
+.dcp-alert-feed{flex:1;padding:16px;overflow-y:auto;}
+.feed-title{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}
+.feed-item{
+  display:flex;gap:10px;padding:10px 12px;
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;
+  animation:fadeIn .4s ease;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.feed-icon{font-size:1.5rem;flex-shrink:0;}
+.feed-name{font-weight:700;font-size:.88rem;}
+.feed-desc{font-size:.76rem;color:var(--muted);margin-top:2px;}
+.feed-badge{display:inline-block;padding:1px 7px;border-radius:3px;font-size:.63rem;font-family:'Share Tech Mono',monospace;font-weight:700;margin-top:4px;letter-spacing:1px;}
+.badge-high{background:rgba(239,68,68,.15);color:var(--red);}
+.badge-med{background:rgba(234,179,8,.15);color:var(--yellow);}
+.badge-low{background:rgba(34,197,94,.15);color:var(--green);}
+
+/* DCP Legend */
+.dcp-legend{
+  padding:10px 14px;background:rgba(5,14,28,.8);border-top:1px solid var(--border);
+  display:flex;gap:14px;flex-wrap:wrap;font-size:.7rem;color:var(--text-sub);
+}
+.leg-item{display:flex;align-items:center;gap:5px;}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+/* DCP Status bar */
+.dcp-status-bar{
+  font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--muted);
+  padding:6px 14px;background:rgba(5,14,28,.9);border-top:1px solid var(--border);
+  display:flex;gap:16px;flex-wrap:wrap;
+}
+
+/* =====================================================
+   CAMPS
+   ===================================================== */
+#camps{background:var(--panel);}
+.search-container{
+  max-width:960px;margin:0 auto 48px;display:flex;gap:14px;flex-wrap:wrap;
+  justify-content:center;align-items:center;
+  background:var(--surface);padding:28px;border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-md);border:1.5px solid var(--border);
+}
+.dropdown{position:relative;flex:1;min-width:200px;}
+.btn-dropdown{
+  width:100%;padding:12px 18px;background:var(--surface-alt);color:var(--text);
+  border:1.5px solid var(--border);border-radius:var(--radius);cursor:pointer;
+  font-size:14px;font-weight:500;transition:border-color var(--transition),box-shadow var(--transition);
+  font-family:'Source Sans 3',sans-serif;text-align:left;
+}
+.btn-dropdown:hover{border-color:var(--sky-base);box-shadow:0 0 0 3px rgba(56,168,224,0.12);}
+.dropdown-menu{
+  position:absolute;top:calc(100% + 6px);left:0;right:0;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+  display:none;z-index:50;box-shadow:var(--shadow-md);overflow:hidden;animation:slideDown .16s ease-out;
+}
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.dropdown-menu div{
+  padding:11px 18px;cursor:pointer;font-size:14px;font-weight:500;color:var(--text);
+  border-bottom:1px solid var(--border);transition:background var(--transition),padding-left var(--transition);
+}
+.dropdown-menu div:last-child{border-bottom:none;}
+.dropdown-menu div:hover{background:rgba(56,168,224,.1);padding-left:24px;color:var(--sky-light);}
+.btn-camps-search{
+  flex:1;min-width:160px;padding:12px 24px;background:var(--sky-mid);color:#fff;
+  border:none;border-radius:var(--radius);cursor:pointer;font-size:14px;font-weight:600;
+  transition:all var(--transition);font-family:'Source Sans 3',sans-serif;
+  box-shadow:0 4px 16px rgba(32,128,200,.3);
+}
+.btn-camps-search:hover{background:var(--sky-deep);transform:translateY(-1px);}
+.btn-camps-reset{
+  flex:1;min-width:120px;padding:12px 24px;background:transparent;color:var(--text);
+  border:1.5px solid var(--border);border-radius:var(--radius);cursor:pointer;
+  font-size:14px;font-weight:600;transition:all var(--transition);font-family:'Source Sans 3',sans-serif;
+}
+.btn-camps-reset:hover{border-color:var(--sky-base);background:var(--sky-mist);}
+.results-container{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;padding:0;}
+.camp-card{
+  background:var(--surface);border:1.5px solid var(--border);border-left:4px solid var(--sky-base);
+  border-radius:var(--radius);padding:24px;box-shadow:var(--shadow-sm);
+  transition:transform var(--transition),box-shadow var(--transition),border-left-color var(--transition);
+  animation:card-appear .4s ease both;
+}
+@keyframes card-appear{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.camp-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-md);border-left-color:var(--accent);}
+.camp-card h3{color:var(--text);margin-bottom:14px;font-size:17px;font-weight:700;font-family:'Playfair Display',serif;}
+.camp-card p{margin:7px 0;color:var(--muted);font-size:13.5px;display:flex;align-items:flex-start;gap:10px;}
+.camp-card b{color:var(--text-sub);font-weight:600;min-width:90px;flex-shrink:0;}
+
+/* =====================================================
+   VOLUNTEERS PROFILES
+   ===================================================== */
+#volunteer-profiles{background:var(--bg);}
+.profiles-grid{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;}
+.volunteer-card{
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:22px;box-shadow:var(--shadow-sm);cursor:pointer;
+  transition:transform var(--transition),box-shadow var(--transition),border-color var(--transition);
+  position:relative;overflow:hidden;
+}
+.volunteer-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--sky-base),var(--accent));
+  transform:scaleX(0);transition:transform var(--transition);transform-origin:left;
+}
+.volunteer-card:hover::before{transform:scaleX(1);}
+.volunteer-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-md);border-color:var(--sky-base);}
+.vol-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.vol-avatar{
+  width:44px;height:44px;border-radius:50%;
+  background:linear-gradient(135deg,var(--sky-mid),var(--sky-deep));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:14px;border:2px solid var(--border);flex-shrink:0;
+}
+.vol-name{font-size:17px;font-weight:700;color:var(--text);font-family:'Playfair Display',serif;}
+.vol-rating{
+  background:rgba(56,168,224,.12);color:var(--sky-light);padding:4px 11px;
+  border-radius:999px;font-weight:700;font-size:12px;letter-spacing:.5px;
+  border:1px solid rgba(56,168,224,.25);
+}
+.vol-role{font-weight:600;color:var(--text-sub);font-size:13.5px;margin-bottom:6px;}
+.vol-location{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:13.5px;margin-bottom:10px;}
+.vol-summary{background:var(--sky-mist);padding:10px 13px;border-radius:8px;border:1px solid var(--border);font-size:13.5px;color:var(--muted);}
+.vol-details{max-height:0;opacity:0;overflow:hidden;transition:max-height .35s ease,opacity .35s ease;}
+.volunteer-card.expanded .vol-details{max-height:280px;opacity:1;margin-top:14px;}
+.vol-details p{margin:8px 0;color:var(--muted);font-size:13.5px;line-height:1.7;}
+.vol-details b{color:var(--text);}
+.contact-btn{
+  background:var(--sky-mid);color:#fff;padding:8px 18px;border:none;border-radius:999px;
+  cursor:pointer;font-size:13px;margin-top:12px;transition:background var(--transition);
+  font-family:'Source Sans 3',sans-serif;font-weight:600;
+}
+.contact-btn:hover{background:var(--sky-deep);}
+.volunteer-card::after{content:'↓ Tap to view';position:absolute;right:14px;bottom:14px;font-size:10.5px;color:var(--muted);font-weight:600;letter-spacing:.5px;}
+.volunteer-card.expanded::after{content:'↑ Collapse';}
+
+/* Contact overlay */
+.contact-overlay{position:fixed;inset:0;background:rgba(0,10,30,.6);display:flex;justify-content:center;align-items:center;z-index:9999;backdrop-filter:blur(8px);}
+.contact-card{background:var(--surface);padding:28px;width:290px;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);text-align:center;animation:pop-in .28s cubic-bezier(0.34,1.56,0.64,1) both;border:1.5px solid var(--border);border-top:3px solid var(--sky-base);}
+@keyframes pop-in{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+.contact-card h3{margin-bottom:4px;color:var(--text);font-family:'Playfair Display',serif;font-size:22px;}
+.contact-card .role{color:var(--muted);font-size:13px;margin-bottom:14px;}
+.contact-info p{margin:5px 0;font-size:14px;color:var(--text);}
+.contact-buttons{margin-top:16px;display:flex;gap:10px;}
+.call-btn{background:var(--sky-mid);color:#fff;padding:9px 14px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600;flex:1;transition:background var(--transition);}
+.call-btn:hover{background:var(--sky-deep);}
+.whatsapp-btn{background:var(--teal);color:#fff;padding:9px 14px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600;flex:1;transition:background var(--transition);}
+.whatsapp-btn:hover{background:#0b7a70;}
+
+/* =====================================================
+   HELP / EMERGENCY GUIDE
+   ===================================================== */
+#help{background:var(--panel);}
+.help-options{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:28px 0;}
+.option{
+  padding:12px 22px;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:999px;cursor:pointer;font-weight:600;font-size:14px;color:var(--text);
+  box-shadow:var(--shadow-sm);transition:all var(--transition);
+}
+.option:hover,.option.active{background:var(--sky-mid);color:#fff;border-color:var(--sky-mid);transform:translateY(-2px);box-shadow:0 6px 24px rgba(32,128,200,.3);}
+.advice-box{
+  max-width:600px;margin:14px auto;padding:18px 22px;
+  background:var(--surface);border-left:4px solid var(--sky-base);
+  border-radius:0 var(--radius) var(--radius) 0;box-shadow:var(--shadow-sm);
+  color:var(--text);font-size:15px;line-height:1.8;
+  border:1.5px solid var(--border);border-left:4px solid var(--sky-base);
+}
+.volunteer-results{margin-top:28px;display:flex;justify-content:center;flex-wrap:wrap;gap:16px;}
+.vol-card{
+  width:220px;padding:18px;background:var(--surface);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);text-align:center;border:1.5px solid var(--border);
+  border-top:3px solid var(--sky-base);transition:transform var(--transition);
+}
+.vol-card:hover{transform:translateY(-4px);}
+.vol-card h3{margin-bottom:5px;color:var(--text);font-family:'Playfair Display',serif;font-size:16px;}
+.vol-card p{font-size:12.5px;margin:3px 0;color:var(--muted);}
+
+/* =====================================================
+   JOIN / VOLUNTEER FORM
+   ===================================================== */
+#join{
+  background:linear-gradient(135deg,var(--sky-deep) 0%,#083870 55%,var(--sky-mid) 100%);
+  position:relative;overflow:hidden;
+}
+#join::before{
+  content:'';position:absolute;inset:0;
+  background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events:none;
+}
+#join .section-label{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:#fff;}
+#join h2{font-family:'Playfair Display',serif;font-size:clamp(26px,4vw,44px);font-weight:800;color:#fff;letter-spacing:-.5px;}
+#join .section-sub{color:rgba(255,255,255,.6);}
+.join-form-wrap{
+  max-width:440px;margin:32px auto 0;
+  background:rgba(255,255,255,.06);backdrop-filter:blur(12px);
+  padding:32px;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);
+  border:1px solid rgba(255,255,255,.15);
+}
+.join-form-wrap input,.join-form-wrap select,.join-form-wrap textarea{
+  width:100%;margin:7px 0;padding:12px 16px;
+  border:1.5px solid rgba(255,255,255,.2);border-radius:var(--radius);
+  font-family:'Source Sans 3',sans-serif;font-size:14.5px;
+  background:rgba(255,255,255,.08);color:#fff;
+  transition:border-color var(--transition),box-shadow var(--transition);
+}
+.join-form-wrap input::placeholder,.join-form-wrap textarea::placeholder{color:rgba(255,255,255,.4);}
+.join-form-wrap input:focus,.join-form-wrap select:focus,.join-form-wrap textarea:focus{
+  outline:none;border-color:rgba(255,255,255,.5);box-shadow:0 0 0 3px rgba(255,255,255,.08);
+}
+.join-form-wrap select option{background:var(--surface);color:var(--text);}
+.join-form-wrap textarea{resize:none;height:96px;}
+.join-form-wrap button{
+  width:100%;margin-top:10px;padding:14px;
+  background:var(--accent);color:#fff;border:none;cursor:pointer;
+  border-radius:999px;font-size:15px;font-weight:700;
+  font-family:'Source Sans 3',sans-serif;letter-spacing:.5px;
+  transition:all var(--transition);box-shadow:0 4px 20px var(--accent-glow);
+}
+.join-form-wrap button:hover{background:#ea6c00;transform:translateY(-1px);box-shadow:0 8px 32px var(--accent-glow);}
+
+/* =====================================================
+   LEARNING CENTER
+   ===================================================== */
+#learning{background:var(--bg);}
+.learning-inner{
+  max-width:1200px;margin:0 auto;padding:0 28px 80px;
+}
+.disaster-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:22px;}
+.disaster-card{
+  min-height:180px;padding:28px;border-radius:var(--radius);
+  background:linear-gradient(145deg,var(--surface),var(--surface-alt));
+  border:1.5px solid var(--border);box-shadow:var(--shadow-sm);
+  cursor:pointer;transition:transform var(--transition),border-color var(--transition),box-shadow var(--transition);
+}
+.disaster-card:hover{transform:translateY(-8px) scale(1.01);border-color:var(--sky-base);box-shadow:var(--shadow-md);}
+.disaster-card h2{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:700;margin-bottom:10px;color:var(--text);}
+.disaster-card p{color:var(--muted);font-size:.9rem;line-height:1.7;}
+
+.dos-donts,.checklist-section{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:26px;}
+.box,.step,.scenario-box,.check-items-box{
+  border-radius:var(--radius);padding:24px;border:1.5px solid var(--border);
+  background:var(--surface);box-shadow:var(--shadow-sm);
+}
+.box h3{font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;margin-bottom:14px;color:var(--text);}
+.box p{color:var(--muted);margin:7px 0;font-size:14px;}
+.box.do{border-left:4px solid var(--green);}
+.box.dont{border-left:4px solid var(--coral);}
+.steps-section{margin-top:26px;}
+.step{margin-bottom:12px;font-weight:600;color:var(--text);background:var(--sky-mist);border-left:3px solid var(--sky-base);}
+.step:last-child{margin-bottom:0;}
+.scenario-box{margin-top:26px;}
+.scenario-box p{color:var(--muted);}
+.btn-scenario{
+  margin-top:18px;padding:12px 24px;border:none;border-radius:999px;
+  background:var(--sky-mid);color:#fff;font-size:.95rem;font-weight:600;
+  cursor:pointer;transition:all var(--transition);font-family:'Source Sans 3',sans-serif;
+}
+.btn-scenario:hover{background:var(--sky-deep);transform:translateY(-1px);}
+.hidden{display:none;}
+.checklist-section{padding:0;}
+.check-items-box{display:grid;gap:10px;}
+.check-items-box label{
+  display:flex;align-items:center;gap:11px;padding:12px 15px;
+  background:var(--sky-cloud);border-radius:8px;cursor:pointer;
+  transition:transform var(--transition),background var(--transition);
+  font-family:'Source Sans 3',sans-serif;color:var(--text);font-size:14px;
+  border:1.5px solid var(--border);
+}
+.check-items-box label:hover{transform:translateX(4px);background:var(--sky-mist);}
+.check-items-box input{width:17px;height:17px;cursor:pointer;accent-color:var(--sky-base);}
+
+/* Community / posts */
+.community-section{
+  margin-top:32px;padding:34px;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);
+}
+.community-section h2{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:6px;color:var(--text);}
+.community-section .subtitle-text{color:var(--muted);font-size:14.5px;margin-bottom:22px;}
+.suggestion-post{
+  padding:22px;border-radius:var(--radius);background:var(--surface-alt);
+  border:1.5px solid var(--border);box-shadow:var(--shadow-sm);margin-bottom:16px;
+  border-left:4px solid var(--sky-base);transition:transform var(--transition);
+}
+.suggestion-post:hover{transform:translateY(-2px);}
+.post-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+.post-author{font-weight:700;color:var(--text);font-family:'Playfair Display',serif;font-size:15px;}
+.post-type{font-size:10.5px;color:var(--sky-light);background:rgba(56,168,224,.12);padding:3px 10px;border-radius:999px;letter-spacing:.5px;text-transform:uppercase;font-weight:700;border:1px solid rgba(56,168,224,.2);}
+.post-content{margin:10px 0;line-height:1.8;color:var(--muted);font-size:14px;}
+.post-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px;}
+.helpful-btn,.not-helpful-btn{
+  padding:6px 14px;border-radius:999px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--text);cursor:pointer;
+  transition:all var(--transition);font-family:'Source Sans 3',sans-serif;font-size:12.5px;
+}
+.helpful-btn:hover{background:rgba(13,148,136,.12);transform:translateY(-1px);}
+.not-helpful-btn:hover{background:rgba(220,38,38,.1);transform:translateY(-1px);}
+.rating{display:flex;align-items:center;gap:5px;color:var(--muted);font-weight:600;font-size:13px;}
+.stars{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;cursor:pointer;transition:transform var(--transition),color var(--transition);color:#2a3a50;}
+.stars:hover,.stars.active{color:var(--amber);transform:scale(1.15);}
+.rating-score{margin-left:4px;font-size:11.5px;color:var(--muted);}
+.posts-container{display:grid;gap:14px;}
+.post-item{padding:20px;border-radius:var(--radius);background:var(--surface);border:1.5px solid var(--border);box-shadow:var(--shadow-sm);}
+.add-post{margin-top:28px;padding:24px;border-radius:var(--radius);background:var(--surface);border:1.5px solid var(--border);box-shadow:var(--shadow-sm);}
+.add-post h3{margin-bottom:14px;font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:var(--text);}
+.add-post input,.add-post select,.add-post textarea{
+  width:100%;margin:7px 0;padding:11px 14px;border:1.5px solid var(--border);
+  border-radius:var(--radius);background:var(--surface-alt);color:var(--text);
+  font-size:.95rem;font-family:'Source Sans 3',sans-serif;
+  transition:border-color var(--transition),box-shadow var(--transition);
+}
+.add-post input:focus,.add-post select:focus,.add-post textarea:focus{outline:none;border-color:var(--sky-base);box-shadow:0 0 0 3px rgba(56,168,224,.12);}
+.add-post textarea{min-height:100px;resize:vertical;}
+.add-post button{
+  margin-top:12px;padding:12px 26px;border:none;border-radius:999px;
+  background:var(--sky-mid);color:#fff;font-size:.95rem;font-weight:700;
+  cursor:pointer;transition:all var(--transition);font-family:'Source Sans 3',sans-serif;
+}
+.add-post button:hover{background:var(--sky-deep);transform:translateY(-1px);}
+.user-tag{background:var(--sky-base);color:#fff;padding:3px 10px;border-radius:999px;font-size:10.5px;font-weight:700;}
+.expert-tag{background:var(--teal);color:#fff;padding:3px 10px;border-radius:999px;font-size:10.5px;font-weight:700;}
+
+/* =====================================================
+   DMS / RAJDIP SECTION
+   ===================================================== */
+#dms-home{
+  background:var(--panel);
+  position:relative;overflow:hidden;
+}
+.dms-hero{
+  height:320px;
+  background:linear-gradient(160deg,#030c1a 0%,#06224a 50%,#0c3060 100%);
+  display:flex;justify-content:center;align-items:center;
+  color:#fff;font-family:'Playfair Display',serif;
+  font-size:clamp(22px,5vw,48px);font-weight:800;
+  text-shadow:0 2px 24px rgba(0,0,0,.5);position:relative;
+  letter-spacing:-.5px;
+  border-bottom:1px solid var(--border);
+}
+.dms-hero::after{
+  content:'';position:absolute;inset:0;
+  background:url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=60&w=1200&auto=format') center/cover no-repeat;
+  opacity:.18;mix-blend-mode:luminosity;
+}
+.dms-hero span{position:relative;z-index:1;}
+.dms-hero-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to bottom,rgba(3,12,26,.6) 0%,rgba(3,12,26,.2) 50%,rgba(3,12,26,.8) 100%);
+  z-index:0;
+}
+
+/* DMS Why Cards */
+.raj-cards{display:flex;justify-content:center;flex-wrap:wrap;gap:18px;margin-top:22px;}
+.raj-card{
+  background:var(--surface);padding:24px;width:250px;border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);transition:transform var(--transition),box-shadow var(--transition),border-top-color var(--transition);
+  border:1.5px solid var(--border);border-top:3px solid var(--sky-base);
+}
+.raj-card:hover{transform:translateY(-6px);box-shadow:var(--shadow-md);border-top-color:var(--accent);}
+.raj-card h3{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:7px;}
+.raj-card p{font-size:13px;color:var(--muted);line-height:1.65;}
+.raj-card button{
+  margin-top:12px;padding:8px 18px;border:none;border-radius:999px;
+  background:var(--sky-mid);color:#fff;cursor:pointer;
+  transition:all var(--transition);font-family:'Source Sans 3',sans-serif;font-size:12.5px;font-weight:600;
+}
+.raj-card button:hover{background:var(--sky-deep);transform:translateY(-1px);}
+
+/* DMS Stats */
+.raj-stats{
+  display:flex;justify-content:space-around;flex-wrap:wrap;
+  background:linear-gradient(135deg,var(--sky-deep) 0%,#083870 60%,var(--sky-mid) 100%);
+  color:#fff;padding:60px 20px;text-align:center;border-top:none;
+}
+.raj-stats > div{flex:1;min-width:150px;padding:20px;}
+.raj-stats h2{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,52px);font-weight:800;color:#fff;line-height:1;}
+.raj-stats p{font-size:12.5px;opacity:.6;letter-spacing:1.5px;text-transform:uppercase;margin-top:6px;font-family:'Share Tech Mono',monospace;}
+
+/* DMS Activities Gallery */
+#dms-activities{background:var(--bg);}
+.raj-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:22px;}
+.raj-gallery img{width:100%;height:220px;object-fit:cover;border-radius:var(--radius);transition:transform var(--transition);border:1px solid var(--border);}
+.raj-gallery img:hover{transform:scale(1.04);}
+
+/* DMS Community / Reports */
+#dms-community{
+  background:linear-gradient(160deg,#071830 0%,#0a2a50 50%,#0c3060 100%);
+  padding:70px 0 0;position:relative;
+}
+.raj-community-inner{max-width:1380px;margin:0 auto;padding:0 28px 70px;}
+.raj-community-inner h2{text-align:center;color:#fff;font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,42px);font-weight:800;margin-bottom:6px;}
+.raj-community-inner > p{text-align:center;color:rgba(255,255,255,.5);margin-bottom:40px;font-size:15px;}
+.raj-container{display:flex;gap:20px;margin-top:0;}
+.raj-left{width:22%;min-width:200px;}
+.raj-feed{flex:1;}
+.raj-right{width:22%;min-width:200px;}
+.glass-card{
+  background:rgba(255,255,255,.07);backdrop-filter:blur(14px);
+  border-radius:var(--radius);padding:16px;margin-bottom:14px;color:#fff;
+  border:1px solid rgba(255,255,255,.12);transition:transform var(--transition);
+}
+.glass-card:hover{transform:translateY(-3px);}
+.glass-card h3{font-family:'Playfair Display',serif;font-size:16px;font-weight:700;margin-bottom:9px;color:var(--sky-light);}
+.glass-card p,.glass-card li{font-size:13.5px;margin:4px 0;opacity:.88;list-style:none;}
+.post-box{
+  background:rgba(255,255,255,.07);backdrop-filter:blur(14px);
+  border-radius:var(--radius);padding:16px;margin-bottom:12px;color:#fff;
+  border:1px solid rgba(255,255,255,.12);
+}
+.post-box textarea,.post-box input[type="text"],.post-box select{
+  width:100%;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+  margin-top:7px;background:rgba(255,255,255,.09);color:#fff;
+  font-family:'Source Sans 3',sans-serif;font-size:13.5px;
+}
+.post-box input::placeholder,.post-box textarea::placeholder{color:rgba(255,255,255,.45);}
+.post-box input[type="file"]{width:100%;margin-top:7px;color:rgba(255,255,255,.7);font-size:12.5px;}
+.post-box button{
+  margin-top:9px;padding:8px 18px;border:none;border-radius:999px;
+  background:var(--sky-mid);color:#fff;cursor:pointer;
+  transition:all var(--transition);font-family:'Source Sans 3',sans-serif;font-size:13px;font-weight:600;
+}
+.post-box button:hover{background:var(--sky-deep);transform:translateY(-1px);}
+#raj-posts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.raj-post{
+  background:rgba(255,255,255,.09);backdrop-filter:blur(8px);border-radius:var(--radius);
+  padding:12px;color:#fff;font-size:12.5px;border:1px solid rgba(255,255,255,.12);
+}
+.raj-post img{width:100%;height:100px;object-fit:cover;border-radius:8px;margin-top:6px;}
+.raj-comment{font-size:11.5px;margin-top:4px;opacity:.7;}
+.raj-user{display:flex;align-items:center;gap:9px;margin:6px 0;color:#fff;}
+.raj-user img{width:32px;height:32px;border-radius:50%;border:2px solid rgba(100,200,240,.35);}
+
+/* DMS Alerts */
+#dms-alerts{background:var(--surface);padding:80px 28px;text-align:center;}
+#dms-alerts h2{font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,40px);font-weight:800;color:var(--text);margin-bottom:12px;}
+#dms-alerts > p{color:var(--muted);font-size:16px;margin-bottom:20px;}
+#raj-alertText{font-size:17px;font-weight:600;color:var(--text);margin:14px 0;}
+#dms-alerts button{
+  padding:12px 28px;background:rgba(239,68,68,.15);color:var(--red);
+  border:1.5px solid rgba(239,68,68,.4);border-radius:999px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;
+  transition:all var(--transition);
+}
+#dms-alerts button:hover{background:rgba(239,68,68,.28);}
+
+/* =====================================================
+   FOOTER
+   ===================================================== */
+footer{
+  background:var(--panel);color:rgba(255,255,255,.45);text-align:center;
+  padding:36px 24px;font-size:13.5px;border-top:1px solid var(--border);
+  font-family:'Share Tech Mono',monospace;letter-spacing:.5px;
+}
+footer strong{color:var(--sky-light);}
+footer a{color:var(--accent);text-decoration:none;}
+
+/* =====================================================
+   BACK TO TOP / TOAST
+   ===================================================== */
+#back-top{
+  position:fixed;bottom:30px;right:30px;width:44px;height:44px;
+  background:var(--sky-mid);color:#fff;border:none;border-radius:50%;
+  font-size:18px;cursor:pointer;box-shadow:var(--shadow-md);
+  transition:opacity var(--transition),transform var(--transition),background var(--transition);
+  z-index:1500;opacity:0;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+}
+#back-top.visible{opacity:1;pointer-events:all;}
+#back-top:hover{background:var(--sky-deep);transform:translateY(-3px);}
+#toast{
+  position:fixed;bottom:86px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--sky-deep);border:1px solid var(--sky-base);color:#fff;
+  padding:11px 28px;border-radius:999px;font-size:13.5px;font-weight:500;
+  z-index:4000;opacity:0;transition:opacity .3s,transform .3s;
+  pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-md);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* =====================================================
+   UTILITY
+   ===================================================== */
+.center-text{text-align:center;}
+.surface-alt{background:var(--surface-alt);}
+.surface-alt-bg{background:var(--surface);}
+.placeholder{color:var(--muted);}
+.subtitle{color:var(--muted);font-size:15.5px;font-weight:300;margin-bottom:28px;}
+.hero-note{
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-bottom:28px;padding:10px 20px;border-radius:999px;
+  background:var(--sky-mist);border:1.5px solid rgba(56,168,224,.25);
+  color:var(--sky-light);font-weight:600;font-size:13.5px;
+}
+.section-title{
+  position:relative;display:inline-block;padding-bottom:5px;
+  color:var(--text);font-family:'Playfair Display',serif;font-weight:700;font-size:21px;
+}
+.section-title::after{
+  content:'';position:absolute;left:0;bottom:0;width:36px;height:3px;
+  border-radius:999px;background:linear-gradient(90deg,var(--sky-base),var(--accent));
+}
+
+/* =====================================================
+   RESPONSIVE
+   ===================================================== */
+@media(max-width:1200px){.dcp-dashboard{grid-template-columns:280px 1fr;}.raj-container{flex-direction:column;}.raj-left,.raj-right{width:100%;}.raj-feed{width:100%;}#raj-posts{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}}
+@media(max-width:960px){.dcp-dashboard{grid-template-columns:1fr;min-height:auto;}.dcp-aside{border-right:none;border-bottom:1px solid var(--border);}.disaster-cards{grid-template-columns:1fr 1fr;}.nav-links{display:none;}#hamburger{display:flex;}}
+@media(max-width:700px){.disaster-cards{grid-template-columns:1fr;}.dos-donts,.checklist-section{grid-template-columns:1fr;}.raj-stats{flex-direction:column;gap:0;}.impact-item{min-width:50%;}#raj-posts{grid-template-columns:1fr;}.results-container{grid-template-columns:1fr;}}
+@media(max-width:480px){.hero h1{letter-spacing:-1px;}.hero-stats{gap:24px;}.section-wrap{padding:60px 18px;}.dcp-dashboard{margin:0 12px 60px;}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     TICKER
+ ═══════════════════════════════════════════════════ -->
+<div id="alert-ticker" role="marquee">
+  <div class="ticker-track">
+    <span class="ticker-item"><span class="ticker-badge">⚠ ALERT</span> Flood warning issued for Kolkata riverside areas — evacuate to higher ground immediately</span>
+    <span class="ticker-item"><span class="ticker-badge">🔥 FIRE</span> Industrial fire reported near Howrah — emergency services on site</span>
+    <span class="ticker-item"><span class="ticker-badge">✅ SAFE</span> Earthquake tremors subsided in Siliguri region — teams assessing damage</span>
+    <span class="ticker-item"><span class="ticker-badge">🏕 CAMP</span> New relief camp opened at Durgapur Community Center — capacity 500</span>
+    <span class="ticker-item"><span class="ticker-badge">📞 HELPLINE</span> ResQNet 24/7 hotline: 1800-RES-QNET · Police: 100 · Fire: 101 · Ambulance: 102</span>
+    <span class="ticker-item"><span class="ticker-badge">⚠ ALERT</span> Flood warning issued for Kolkata riverside areas — evacuate to higher ground immediately</span>
+    <span class="ticker-item"><span class="ticker-badge">🔥 FIRE</span> Industrial fire reported near Howrah — emergency services on site</span>
+    <span class="ticker-item"><span class="ticker-badge">✅ SAFE</span> Earthquake tremors subsided in Siliguri region — teams assessing damage</span>
+    <span class="ticker-item"><span class="ticker-badge">🏕 CAMP</span> New relief camp opened at Durgapur Community Center — capacity 500</span>
+    <span class="ticker-item"><span class="ticker-badge">📞 HELPLINE</span> ResQNet 24/7 hotline: 1800-RES-QNET · Police: 100 · Fire: 101 · Ambulance: 102</span>
+  </div>
+</div>
+
+<div id="scroll-progress"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     NAVBAR
+ ═══════════════════════════════════════════════════ -->
+<nav id="main-nav">
+  <a href="#hero" class="nav-brand">
+    <span class="brand-res">Res</span><span class="brand-q">Q</span><span class="brand-net">Net</span>
+    <span class="brand-sep">×</span>
+    <span class="brand-dcp">DCP</span>
+  </a>
+  <div class="nav-links">
+    <span class="nav-section-label">ResQNet</span>
+    <a href="#hero">Home</a>
+    <a href="#camps">Camps</a>
+    <a href="#volunteer-profiles">Volunteers</a>
+    <a href="#help">Help</a>
+    <a href="#join">Join</a>
+    <a href="#learning">Learn</a>
+    <div class="divider"></div>
+    <span class="nav-section-label">DCP Live</span>
+    <a href="#disastercare">Live Scanner</a>
+    <div class="divider"></div>
+    <span class="nav-section-label">DMS</span>
+    <a href="#dms-home">DMS</a>
+    <a href="#dms-activities">Activities</a>
+    <a href="#dms-community">Reports</a>
+    <a href="#dms-alerts">Alerts</a>
+  </div>
+  <div class="nav-right">
+    <button class="btn-nav btn-nav-red" onclick="dcpSendSOS()"><span class="nav-pulse"></span>SOS</button>
+    <button class="btn-nav btn-nav-accent" onclick="dcpInitAll()">▶ INIT</button>
+    <button id="hamburger" onclick="toggleMenu()" aria-label="Menu">☰</button>
+  </div>
+</nav>
+<div id="mobile-menu">
+  <span class="mob-section">ResQNet</span>
+  <a href="#hero" onclick="toggleMenu()">Home</a>
+  <a href="#camps" onclick="toggleMenu()">Camps</a>
+  <a href="#volunteer-profiles" onclick="toggleMenu()">Volunteers</a>
+  <a href="#help" onclick="toggleMenu()">Help</a>
+  <a href="#join" onclick="toggleMenu()">Join</a>
+  <a href="#learning" onclick="toggleMenu()">Learn</a>
+  <span class="mob-section">DisasterCare PRO</span>
+  <a href="#disastercare" onclick="toggleMenu()">Live Scanner</a>
+  <span class="mob-section">DMS</span>
+  <a href="#dms-home" onclick="toggleMenu()">DMS Home</a>
+  <a href="#dms-activities" onclick="toggleMenu()">Activities</a>
+  <a href="#dms-community" onclick="toggleMenu()">Community</a>
+  <a href="#dms-alerts" onclick="toggleMenu()">Alerts</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     HERO
+ ═══════════════════════════════════════════════════ -->
+<section id="hero">
+  <div class="hero-grid-overlay"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-particles" id="heroParticles"></div>
+  <div class="hero-badge"><span class="live-dot"></span>Emergency Response Network — West Bengal</div>
+  <h1>
+    Together, We <span class="h1-accent-coral">Respond.</span><br>
+    Together, We <span class="h1-accent-sky">Rebuild.</span>
+  </h1>
+  <p class="hero-sub">Connecting volunteers, camps, real-time disaster tracking, and communities to save lives — powered by ResQNet &amp; DisasterCare PRO.</p>
+  <div class="hero-cta">
+    <a href="#join" class="btn-hero-primary">Join as Volunteer</a>
+    <a href="#camps" class="btn-hero-secondary">Find Nearby Camps</a>
+    <a href="#disastercare" class="btn-hero-danger">⚡ Live Scanner</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="number" id="counter-volunteers">0</div><div class="label">Volunteers</div></div>
+    <div class="hero-stat"><div class="number" id="counter-camps">0</div><div class="label">Active Camps</div></div>
+    <div class="hero-stat"><div class="number" id="counter-helped">0</div><div class="label">People Helped</div></div>
+    <div class="hero-stat"><div class="number" id="counter-operations">0</div><div class="label">Operations</div></div>
+  </div>
+  <div class="scroll-indicator"><span>SCROLL</span><div class="scroll-dot"></div></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     MISSION
+ ═══════════════════════════════════════════════════ -->
+<!-- <section id="mission">
+  <div class="mission-inner">
+    <div class="section-label">Our Mission</div>
+    <h2>Be the Change in a Crisis</h2>
+    <p>In times of disaster, every helping hand matters. Your small effort can save lives, bring hope, and rebuild communities across West Bengal and beyond.</p>
+    <div class="impact-row">
+      <div class="impact-item"><div class="impact-num">50+</div><div class="impact-label">Rescue Teams</div></div>
+      <div class="impact-item"><div class="impact-num">100+</div><div class="impact-label">Operations</div></div>
+      <div class="impact-item"><div class="impact-num">5,000+</div><div class="impact-label">Lives Saved</div></div>
+      <div class="impact-item"><div class="impact-num">24/7</div><div class="impact-label">Always Ready</div></div>
+    </div>
+  </div>
+</section> -->
+
+<!-- ═══════════════════════════════════════════════════
+     CAMPS
+ ═══════════════════════════════════════════════════ -->
+<section id="camps">
+  <div class="section-wrap">
+    <div class="section-label">Relief Camps</div>
+    <h2 class="section-heading">Find Volunteer Camps Near You</h2>
+    <div class="rule-divider"></div>
+    <p class="section-sub" style="margin-bottom:36px;">Search and locate active relief camps across West Bengal by area and proximity.</p>
+    <div class="search-container">
+      <div class="dropdown">
+        <button onclick="toggleDropdown()" class="btn-dropdown" id="areaBtn">📍 Select Area</button>
+        <input type="hidden" id="selectedArea" value="">
+        <div id="areaList" class="dropdown-menu">
+          <div onclick="selectArea('Kolkata')">Kolkata</div>
+          <div onclick="selectArea('Howrah')">Howrah</div>
+          <div onclick="selectArea('Durgapur')">Durgapur</div>
+          <div onclick="selectArea('Siliguri')">Siliguri</div>
+          <div onclick="selectArea('Asansol')">Asansol</div>
+        </div>
+      </div>
+      <div class="dropdown">
+        <button onclick="toggleDistanceDropdown()" class="btn-dropdown" id="distanceBtn">📏 Select Distance</button>
+        <input type="hidden" id="selectedDistance" value="">
+        <div id="distanceList" class="dropdown-menu">
+          <div onclick="selectDistance('10')">Within 10 km</div>
+          <div onclick="selectDistance('20')">Within 20 km</div>
+          <div onclick="selectDistance('50')">Within 50 km</div>
+          <div onclick="selectDistance('75')">Within 75 km</div>
+          <div onclick="selectDistance('100')">Within 100 km</div>
+        </div>
+      </div>
+      <button onclick="searchCamps()" class="btn-camps-search">🔍 Search Camps</button>
+      <button onclick="resetFilters()" class="btn-camps-reset">↺ Reset</button>
+    </div>
+    <div id="results" class="results-container"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     VOLUNTEERS
+ ═══════════════════════════════════════════════════ -->
+<section id="volunteer-profiles" style="background:var(--bg);">
+  <div class="section-wrap">
+    <div class="center-text" style="margin-bottom:40px;">
+      <div class="section-label">Our People</div>
+      <h2 class="section-heading">Volunteer Details</h2>
+      <div class="rule-divider" style="margin:18px auto;"></div>
+      <p class="section-sub" style="margin:0 auto;">Tap any profile card to reveal full experience, specialties, and trust indicators.</p>
+    </div>
+    <div id="volunteerList" class="profiles-grid"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     HELP / EMERGENCY GUIDE
+ ═══════════════════════════════════════════════════ -->
+<section id="help">
+  <div class="section-wrap">
+    <div class="center-text" style="margin-bottom:32px;">
+      <div class="section-label">Emergency Guide</div>
+      <h2 class="section-heading">What Help Do You Need?</h2>
+      <div class="rule-divider" style="margin:18px auto;"></div>
+      <p class="section-sub" style="margin:0 auto;">Select your emergency type for instant guidance and nearby volunteer connections.</p>
+    </div>
+    <div class="help-options">
+      <div class="option" onclick="showHelp('earthquake')">🌍 Earthquake</div>
+      <div class="option" onclick="showHelp('fire')">🔥 Fire</div>
+      <div class="option" onclick="showHelp('injury')">🩸 Injury</div>
+      <div class="option" onclick="showHelp('flood')">🌊 Flood</div>
+      <div class="option" onclick="showHelp('food')">🍽️ Food &amp; Water</div>
+      <div class="option" onclick="showHelp('shelter')">🏠 Shelter</div>
+    </div>
+    <div id="adviceBox" class="advice-box"><p>Select an emergency type above to get instant guidance.</p></div>
+    <div id="volunteerResults" class="volunteer-results"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     JOIN
+ ═══════════════════════════════════════════════════ -->
+<section id="join">
+  <div class="section-wrap center-text" style="position:relative;z-index:1;">
+    <div class="section-label">Get Involved</div>
+    <h2>Join Our Volunteer Team</h2>
+    <div class="rule-divider" style="margin:18px auto;background:rgba(255,255,255,.4);"></div>
+    <p class="section-sub" style="margin:0 auto 26px;">Be a hero when it matters most. Register to become part of ResQNet's emergency response network.</p>
+    <div class="join-form-wrap">
+      <form onsubmit="event.preventDefault();showToast('✅ Thank you for joining ResQNet!');this.reset();">
+        <input type="text" placeholder="Full Name" required>
+        <input type="email" placeholder="Email Address" required>
+        <input type="tel" placeholder="Phone Number" required>
+        <select required>
+          <option value="">Select Your Skill</option>
+          <option>First Aid</option>
+          <option>Rescue Operations</option>
+          <option>Food Distribution</option>
+          <option>Shelter Management</option>
+          <option>Medical Support</option>
+          <option>Communication / Coordination</option>
+        </select>
+        <textarea placeholder="Why do you want to join ResQNet?" required></textarea>
+        <button type="submit">Join ResQNet Now</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     DISASTERCARE PRO — LIVE SCANNER
+ ═══════════════════════════════════════════════════ -->
+<section id="disastercare">
+  <div class="dcp-header">
+    <div class="dcp-tag">⚡ DisasterCare PRO — Live Module</div>
+    <h2 class="section-heading center-text">Real-Time Disaster Scanner</h2>
+    <div class="rule-divider" style="margin:18px auto;"></div>
+    <p class="section-sub center-text" style="margin:0 auto 32px;">Powered by live weather APIs, GPS, and global earthquake feeds. Press Initialize to scan your location.</p>
+  </div>
+  <div class="dcp-dashboard">
+    <!-- Sidebar -->
+    <aside class="dcp-aside">
+      <button class="dcp-btn-start" onclick="dcpInitAll()">▶ INITIALIZE SYSTEM</button>
+      <div class="side-section">
+        <div class="side-title">Risk Level</div>
+        <div class="risk-badge STANDBY" id="riskBadge">
+          <div class="risk-label">Risk Level</div>
+          <div id="riskLevelText">STANDBY</div>
+          <div class="risk-sub" id="riskDetails">Press Initialize to scan</div>
+        </div>
+      </div>
+      <div class="side-section">
+        <div class="side-title">Threat Detectors</div>
+        <div id="threatChips">
+          <span class="threat-chip">🌀 Cyclone</span>
+          <span class="threat-chip">🌊 Flood</span>
+          <span class="threat-chip">🔥 Heat</span>
+          <span class="threat-chip">⚡ Storm</span>
+          <span class="threat-chip">🌪️ Tornado</span>
+          <span class="threat-chip">❄️ Blizzard</span>
+          <span class="threat-chip">🌫️ Fog</span>
+          <span class="threat-chip">🏜️ Drought</span>
+        </div>
+      </div>
+      <div class="side-section">
+        <div class="side-title">Event Log</div>
+        <div id="eventLog">
+          <div class="log-item"><span class="log-time">--:--:--</span><br>System idle. Awaiting init.</div>
+        </div>
+      </div>
+      <div class="dcp-btn-grid">
+        <button class="dcp-btn dcp-btn-danger" onclick="dcpSendSOS()">📲 SOS</button>
+        <button class="dcp-btn dcp-btn-blue" onclick="callEmergency()">📞 112</button>
+      </div>
+    </aside>
+
+    <!-- Map col -->
+    <div class="dcp-map-col">
+      <div id="dcpMap"></div>
+      <div class="dcp-legend">
+        <div class="leg-item"><div class="leg-dot" style="background:#ef4444"></div> HIGH Risk</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#eab308"></div> MEDIUM</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div> Hospital/Shelter</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#f97316"></div> Earthquake</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#8b5cf6"></div> Storm Event</div>
+      </div>
+      <div class="dcp-alert-feed">
+        <div class="feed-title">⚡ Live Disaster Feed</div>
+        <div id="alertFeed">
+          <div class="feed-item">
+            <div class="feed-icon">🛰️</div>
+            <div class="feed-body">
+              <div class="feed-name">System Ready</div>
+              <div class="feed-desc">Press Initialize to load live weather, nearby hazards, and global events.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dcp-status-bar" id="statusBar">
+        <span>LAT: --</span><span>LON: --</span><span>WIND: --</span><span>TEMP: --</span><span>RAIN: --</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     LEARNING CENTER
+ ═══════════════════════════════════════════════════ -->
+<section id="learning" style="background:var(--panel);padding:80px 0;">
+  <div class="learning-inner">
+    <div class="section-label">Education</div>
+    <h1 style="font-family:'Playfair Display',serif;font-size:clamp(2.2rem,4vw,3.5rem);font-weight:800;margin-bottom:10px;color:var(--sky-light);letter-spacing:-.5px;">Disaster Learning Center</h1>
+    <p class="subtitle">Learn how to respond effectively during emergencies with structured guidance and real-life scenarios.</p>
+    <div class="hero-note">⚡ Fast, friendly preparedness advice with smart community insights.</div>
+    <div class="disaster-cards">
+      <div class="disaster-card" onclick="showDisaster('earthquake')"><h2>🌍 Earthquake</h2><p>Understand safety measures during seismic activity.</p></div>
+      <div class="disaster-card" onclick="showDisaster('fire')"><h2>🔥 Fire</h2><p>Learn how to react quickly during fire emergencies.</p></div>
+      <div class="disaster-card" onclick="showDisaster('flood')"><h2>🌊 Flood</h2><p>Stay safe during rising water levels and floods.</p></div>
+    </div>
+    <div id="dosDonts" class="dos-donts"><p class="placeholder" style="grid-column:1/-1;">Select a disaster above to view Do's &amp; Don'ts.</p></div>
+    <div id="steps" class="steps-section"><p class="placeholder">Step-by-step guidance will appear here.</p></div>
+    <div class="scenario-box">
+      <h2 class="section-title">Real-Life Scenario Training</h2>
+      <p id="scenarioText" style="margin-top:14px;color:var(--muted);">Choose a disaster to begin scenario-based learning.</p>
+      <button class="btn-scenario" onclick="toggleAnswer()">Reveal Correct Action</button>
+      <p id="scenarioAnswer" class="hidden" style="margin-top:14px;color:var(--text);font-weight:600;"></p>
+    </div>
+    <div class="checklist-section" style="margin-top:28px;">
+      <h2 class="section-title" style="grid-column:1/-1;margin-bottom:16px;">Emergency Preparedness Checklist</h2>
+      <div class="check-items-box">
+        <label><input type="checkbox"> Drinking Water (2–3 days supply)</label>
+        <label><input type="checkbox"> First Aid Kit</label>
+        <label><input type="checkbox"> Flashlight &amp; Batteries</label>
+        <label><input type="checkbox"> Mobile Charger / Power Bank</label>
+        <label><input type="checkbox"> Important Documents</label>
+      </div>
+      <div class="check-items-box">
+        <label><input type="checkbox"> Emergency Whistle</label>
+        <label><input type="checkbox"> Warm Blanket</label>
+        <label><input type="checkbox"> Cash Reserve</label>
+        <label><input type="checkbox"> Medications (3-day supply)</label>
+        <label><input type="checkbox"> Emergency Contact List</label>
+      </div>
+    </div>
+    <!-- Featured Suggestions -->
+    <div class="community-section" style="margin-top:36px;">
+      <h2>Featured Experiences &amp; Expert Suggestions</h2>
+      <p class="subtitle-text">Real stories and expert advice from disaster survivors and professionals.</p>
+      <div class="suggestion-post">
+        <div class="post-header"><span class="post-author">John Doe (Survivor)</span><span class="post-type">Earthquake Experience</span></div>
+        <p class="post-content">During the 2010 Haiti earthquake, I was trapped under rubble for hours. The key was staying calm and conserving energy. I used my phone light to signal rescuers. Always have a whistle and light in your emergency kit.</p>
+        <div class="post-actions"><button class="helpful-btn" onclick="voteHelpful(this)">Helpful (0)</button><button class="not-helpful-btn" onclick="voteNotHelpful(this)">Not Helpful (0)</button><div class="rating">Rate: <span class="stars" onclick="rateSuggestion(this,1)">☆</span><span class="stars" onclick="rateSuggestion(this,2)">☆</span><span class="stars" onclick="rateSuggestion(this,3)">☆</span><span class="stars" onclick="rateSuggestion(this,4)">☆</span><span class="stars" onclick="rateSuggestion(this,5)">☆</span><span class="rating-score">(0/5)</span></div></div>
+      </div>
+      <div class="suggestion-post">
+        <div class="post-header"><span class="post-author">Dr. Emily Carter (Expert)</span><span class="post-type">Fire Safety Advice</span></div>
+        <p class="post-content">As a fire safety expert, I recommend installing smoke detectors on every level of your home and testing them monthly. During a fire, crawl low under smoke and use the back of your hand to check door handles for heat before opening.</p>
+        <div class="post-actions"><button class="helpful-btn" onclick="voteHelpful(this)">Helpful (0)</button><button class="not-helpful-btn" onclick="voteNotHelpful(this)">Not Helpful (0)</button><div class="rating">Rate: <span class="stars" onclick="rateSuggestion(this,1)">☆</span><span class="stars" onclick="rateSuggestion(this,2)">☆</span><span class="stars" onclick="rateSuggestion(this,3)">☆</span><span class="stars" onclick="rateSuggestion(this,4)">☆</span><span class="stars" onclick="rateSuggestion(this,5)">☆</span><span class="rating-score">(0/5)</span></div></div>
+      </div>
+      <div class="suggestion-post">
+        <div class="post-header"><span class="post-author">Maria Gonzalez (Survivor)</span><span class="post-type">Flood Experience</span></div>
+        <p class="post-content">In the 2017 Hurricane Harvey, our neighborhood was flooded quickly. We moved to the attic and used a mattress as a raft to reach higher ground. Never underestimate rising water — it can happen faster than you think.</p>
+        <div class="post-actions"><button class="helpful-btn" onclick="voteHelpful(this)">Helpful (0)</button><button class="not-helpful-btn" onclick="voteNotHelpful(this)">Not Helpful (0)</button><div class="rating">Rate: <span class="stars" onclick="rateSuggestion(this,1)">☆</span><span class="stars" onclick="rateSuggestion(this,2)">☆</span><span class="stars" onclick="rateSuggestion(this,3)">☆</span><span class="stars" onclick="rateSuggestion(this,4)">☆</span><span class="stars" onclick="rateSuggestion(this,5)">☆</span><span class="rating-score">(0/5)</span></div></div>
+      </div>
+    </div>
+    <!-- Community Posts -->
+    <div class="community-section" style="margin-top:24px;">
+      <h2>Community Experiences &amp; Expert Suggestions</h2>
+      <p class="subtitle-text">Learn from real experiences and expert advice during disasters.</p>
+      <div id="postsContainer" class="posts-container"></div>
+      <div class="add-post">
+        <h3>Share Your Experience / Suggestion</h3>
+        <input type="text" id="postName" placeholder="Your Name">
+        <select id="postType"><option value="User">User Experience</option><option value="Expert">Expert Advice</option></select>
+        <textarea id="postMessage" placeholder="Write your experience or advice..."></textarea>
+        <button onclick="addPost()">📤 Post Suggestion</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     DMS — TRUSTED RESPONSE
+ ═══════════════════════════════════════════════════ -->
+<section id="dms-home" style="background:var(--bg);">
+  <!-- DMS Hero banner -->
+  <div class="dms-hero">
+    <div class="dms-hero-overlay"></div>
+    <span>Emergency Response Experts — DMS</span>
+  </div>
+  <!-- Why Choose Us -->
+  <div class="section-wrap center-text">
+    <div class="section-label">Why Choose Us</div>
+    <h2 class="section-heading">Trusted. Trained. Ready.</h2>
+    <div class="rule-divider" style="margin:18px auto;"></div>
+    <div class="raj-cards">
+      <div class="raj-card"><h3>Real-Time Alerts</h3><p>Get instant updates about disasters in your area with live data feeds.</p><button onclick="showToast('Learn More coming soon!')">Learn More</button></div>
+      <div class="raj-card"><h3>Expert Team</h3><p>Highly trained disaster response professionals ready 24/7.</p><button onclick="showToast('Learn More coming soon!')">Learn More</button></div>
+      <div class="raj-card"><h3>24/7 Support</h3><p>We are always available for emergency assistance — day or night.</p><button onclick="showToast('Learn More coming soon!')">Learn More</button></div>
+    </div>
+  </div>
+  <!-- Services -->
+  <div id="dms-services" style="background:var(--surface);padding:60px 0;">
+    <div class="section-wrap center-text">
+      <div class="section-label">Our Services</div>
+      <h2 class="section-heading">What We Do</h2>
+      <div class="rule-divider" style="margin:18px auto;"></div>
+      <div class="raj-cards">
+        <div class="raj-card"><h3>Rescue Operations</h3><p>Rapid response during floods, earthquakes, and all major disasters.</p></div>
+        <div class="raj-card"><h3>Medical Aid</h3><p>Immediate first aid and emergency healthcare support on the ground.</p></div>
+        <div class="raj-card"><h3>Shelter Management</h3><p>Safe evacuation coordination and shelter arrangements for displaced communities.</p></div>
+      </div>
+    </div>
+  </div>
+  <!-- Stats -->
+  <div class="raj-stats">
+    <div><h2>50+</h2><p>Rescue Teams</p></div>
+    <div><h2>100+</h2><p>Operations Completed</p></div>
+    <div><h2>5000+</h2><p>People Helped</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     DMS ACTIVITIES
+ ═══════════════════════════════════════════════════ -->
+<section id="dms-activities">
+  <div class="section-wrap">
+    <div class="section-label">Activities</div>
+    <h2 class="section-heading">Our Activities on the Ground</h2>
+    <div class="rule-divider"></div>
+    <div class="raj-gallery">
+      <img src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=600&auto=format" alt="Team activity" loading="lazy">
+      <img src="https://images.unsplash.com/photo-1509099836639-18ba1795216d?w=600&auto=format" alt="Field operations" loading="lazy">
+      <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&auto=format" alt="Coordination" loading="lazy">
+      <img src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=600&auto=format" alt="Community work" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     DMS COMMUNITY / REPORTS
+ ═══════════════════════════════════════════════════ -->
+<section id="dms-community">
+  <div class="raj-community-inner">
+    <h2>Community Reports &amp; Live Feed</h2>
+    <p>Submit incident reports, follow live updates, and connect with nearby responders in real time.</p>
+    <div class="raj-container">
+      <!-- Left -->
+      <div class="raj-left">
+        <div class="glass-card"><h3>Emergency Contacts</h3><p>📞 Police: 100</p><p>🚑 Ambulance: 102</p><p>🔥 Fire: 101</p></div>
+        <div class="glass-card"><h3>Weather</h3><p id="raj-weather">Loading...</p></div>
+        <div class="glass-card"><h3>Quick Stats</h3><p>🌊 Flood: 12 reports</p><p>🔥 Fire: 8 reports</p><p>🚗 Accident: 5 reports</p></div>
+        <div class="glass-card"><h3>Nearby Shelters</h3><ul><li>City Hall Shelter</li><li>Community School</li><li>Relief Camp A</li></ul></div>
+      </div>
+      <!-- Feed -->
+      <div class="raj-feed">
+        <div class="post-box">
+          <textarea id="raj-postInput" placeholder="Describe what happened..."></textarea>
+          <input type="text" id="raj-locationInput" placeholder="Enter location">
+          <button onclick="rajGetLocation()">📍 Use GPS</button>
+          <select id="raj-categoryInput"><option>Flood</option><option>Fire</option><option>Earthquake</option><option>Accident</option></select>
+          <select id="raj-severityInput"><option>Low</option><option>Medium</option><option>High</option></select>
+          <input type="file" id="raj-imageInput">
+          <button onclick="rajAddPost()">Post Report</button>
+        </div>
+        <div id="raj-posts"></div>
+      </div>
+      <!-- Right -->
+      <div class="raj-right">
+        <div class="glass-card"><h3>Notifications</h3><p>⚠ New flood reported</p><p>🔥 Fire under control</p><p>🚑 Help requested</p></div>
+        <div class="glass-card"><h3>Trending Incidents</h3><p>🌊 Flood increasing</p><p>🔥 Fire alerts rising</p></div>
+        <div class="glass-card"><h3>Top Contributors</h3>
+          <div class="raj-user"><img src="https://i.pravatar.cc/35?img=10" alt="Aman"><b>Aman</b></div>
+          <div class="raj-user"><img src="https://i.pravatar.cc/36?img=20" alt="Sneha"><b>Sneha</b></div>
+          <div class="raj-user"><img src="https://i.pravatar.cc/37?img=30" alt="Rahul"><b>Rahul</b></div>
+        </div>
+        <div class="glass-card"><h3>Recent Activity</h3><p>Report added 1 min ago</p><p>Comment posted 3 min ago</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     DMS ALERTS
+ ═══════════════════════════════════════════════════ -->
+<section id="dms-alerts">
+  <div class="section-label">Emergency System</div>
+  <h2>Emergency Alert System</h2>
+  <p>Monitor real-time alerts and simulate emergency scenarios for preparedness drills.</p>
+  <p id="raj-alertText">No active alerts at this time.</p>
+  <button onclick="rajTriggerAlert()">⚠ Simulate Alert</button>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     FOOTER
+ ═══════════════════════════════════════════════════ -->
+<footer>
+  <p>© 2026 <strong>ResQNet</strong> &amp; <strong>DisasterCare PRO</strong> — Disaster Management Platform | Together We Stay Safe 🛡️</p>
+  <p style="margin-top:8px;opacity:.5;">Emergency: Police 100 · Fire 101 · Ambulance 102 · National Disaster Helpline 1078</p>
+</footer>
+
+<button id="back-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     JAVASCRIPT
+ ═══════════════════════════════════════════════════ -->
+<script>
+/* ── Utility ── */
+function showToast(msg,dur=3200){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+function toggleMenu(){document.getElementById('mobile-menu').classList.toggle('open');}
+
+/* ── Scroll progress + back-to-top ── */
+window.addEventListener('scroll',()=>{
+  const s=document.documentElement.scrollHeight-window.innerHeight;
+  document.getElementById('scroll-progress').style.width=s>0?(window.scrollY/s*100)+'%':'0%';
+  document.getElementById('back-top').classList.toggle('visible',window.scrollY>500);
+});
+
+/* ── Particles ── */
+(function(){
+  const c=document.getElementById('heroParticles');
+  if(!c)return;
+  for(let i=0;i<32;i++){
+    const p=document.createElement('div');p.className='particle';
+    p.style.cssText=`left:${Math.random()*100}%;animation-duration:${7+Math.random()*10}s;animation-delay:${Math.random()*12}s;width:${1+Math.random()*3}px;height:${1+Math.random()*3}px;opacity:${0.2+Math.random()*0.5};`;
+    c.appendChild(p);
+  }
+})();
+
+/* ── Counter animation ── */
+function animateCounter(el,target,suffix='',dur=2000){
+  let s=0;const step=target/(dur/16);
+  const t=setInterval(()=>{s+=step;if(s>=target){s=target;clearInterval(t);}el.textContent=Math.floor(s).toLocaleString()+suffix;},16);
+}
+const cob=new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(en.isIntersecting){
+      animateCounter(document.getElementById('counter-volunteers'),500,'+');
+      animateCounter(document.getElementById('counter-camps'),24,'+');
+      animateCounter(document.getElementById('counter-helped'),5000,'+');
+      animateCounter(document.getElementById('counter-operations'),100,'+');
+      cob.disconnect();
+    }
+  });
+},{threshold:0.3});
+const he=document.querySelector('#hero');if(he)cob.observe(he);
+
+/* ── Close dropdowns on outside click ── */
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.dropdown')){
+    document.getElementById('areaList').style.display='none';
+    document.getElementById('distanceList').style.display='none';
+  }
+  if(!e.target.closest('#main-nav')&&!e.target.closest('#mobile-menu')){
+    document.getElementById('mobile-menu').classList.remove('open');
+  }
+});
+
+/* ══════════════════════════════════════════════════
+   DISASTERCARE PRO MODULE
+   ══════════════════════════════════════════════════ */
+let dcpMap,userLat,userLon;
+
+function dcpLogEvent(msg,level='low'){
+  const log=document.getElementById('eventLog');
+  const t=new Date().toLocaleTimeString();
+  const div=document.createElement('div');
+  div.className=`log-item ${level}`;
+  div.innerHTML=`<span class="log-time">${t}</span><br>${msg}`;
+  log.prepend(div);
+  if(log.children.length>10)log.lastChild.remove();
+}
+function dcpAddFeedItem(icon,name,desc,level='low'){
+  const feed=document.getElementById('alertFeed');
+  const div=document.createElement('div');
+  div.className='feed-item';
+  div.innerHTML=`<div class="feed-icon">${icon}</div><div class="feed-body"><div class="feed-name">${name}</div><div class="feed-desc">${desc}</div><span class="feed-badge badge-${level}">${level.toUpperCase()}</span></div>`;
+  feed.prepend(div);
+}
+
+async function dcpInitAll(){
+  document.getElementById('riskBadge').className='risk-badge STANDBY';
+  document.getElementById('riskLevelText').textContent='SCANNING...';
+  dcpLogEvent('System initializing...');
+  document.getElementById('alertFeed').innerHTML='';
+  if(!navigator.geolocation){alert("Geolocation not available");return;}
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    userLat=pos.coords.latitude;userLon=pos.coords.longitude;
+    dcpLogEvent(`Location acquired: ${userLat.toFixed(3)}, ${userLon.toFixed(3)}`);
+    dcpInitMap();await dcpRunWeatherAI();dcpLoadFacilities();await dcpLoadGlobalDisasters();
+  },()=>{
+    dcpLogEvent('GPS failed — using fallback location','high');
+    userLat=22.87;userLon=88.39;
+    dcpInitMap();dcpRunWeatherAI();dcpLoadFacilities();dcpLoadGlobalDisasters();
+  });
+}
+
+function dcpInitMap(){
+  if(dcpMap){dcpMap.remove();}
+  dcpMap=L.map('dcpMap').setView([userLat,userLon],10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(dcpMap);
+  const youIcon=L.divIcon({html:'<div style="background:#f97316;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 10px #f97316"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+  L.marker([userLat,userLon],{icon:youIcon}).addTo(dcpMap).bindPopup('<b>📍 You are here</b>');
+  dcpLogEvent('Map initialized');
+}
+
+async function dcpRunWeatherAI(){
+  try{
+    const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${userLat}&longitude=${userLon}&current_weather=true&hourly=precipitation,windgusts_10m,relativehumidity_2m,visibility,cloudcover&daily=precipitation_sum&timezone=auto`);
+    const w=await res.json();
+    const wind=w.current_weather.windspeed,temp=w.current_weather.temperature;
+    const rain=w.hourly.precipitation[0]??0,gusts=w.hourly.windgusts_10m?.[0]??0;
+    const humidity=w.hourly.relativehumidity_2m?.[0]??0,visibility=w.hourly.visibility?.[0]??10000;
+    const cloud=w.hourly.cloudcover?.[0]??0,dailyRain=w.daily?.precipitation_sum?.[0]??0;
+    document.getElementById('statusBar').innerHTML=`<span>LAT:${userLat.toFixed(3)}</span><span>LON:${userLon.toFixed(3)}</span><span>WIND:${wind}km/h</span><span>TEMP:${temp}°C</span><span>RAIN:${rain}mm/h</span><span>HUM:${humidity}%</span><span>GUST:${gusts}km/h</span>`;
+    let score=0;const threats=[];
+    const chips=document.querySelectorAll('.threat-chip');
+    chips.forEach(c=>{c.className='threat-chip';});
+    function activateChip(i,level='active'){chips[i].className=`threat-chip ${level}`;}
+    if(wind>40){score+=3;threats.push('Cyclone/Cyclonic winds');activateChip(0);dcpAddFeedItem('🌀','Cyclone Wind Alert',`Sustained winds at ${wind}km/h`,'high');L.circle([userLat,userLon],{radius:8000,color:'#ef4444',weight:1,fillOpacity:.08}).addTo(dcpMap);}
+    if(rain>20||dailyRain>60){score+=3;threats.push('Flood risk');activateChip(1);dcpAddFeedItem('🌊','Flood Warning',`Rainfall ${rain}mm/h — daily ${dailyRain}mm`,'high');L.circle([userLat,userLon],{radius:5000,color:'#3b82f6',weight:1,fillOpacity:.1}).addTo(dcpMap);}
+    if(temp>40){score+=2;threats.push('Extreme heat');activateChip(2);dcpAddFeedItem('🔥','Extreme Heat Alert',`Temperature ${temp}°C`,'high');}
+    else if(temp>35){score+=1;threats.push('Heat wave');activateChip(2,'warn');dcpAddFeedItem('🔥','Heat Wave Advisory',`Temperature ${temp}°C`,'med');}
+    if(gusts>60&&cloud>70){score+=2;threats.push('Thunderstorm');activateChip(3);dcpAddFeedItem('⚡','Thunderstorm Warning',`Gusts ${gusts}km/h cloud ${cloud}%`,'high');}
+    else if(gusts>40){score+=1;threats.push('Strong gusts');activateChip(3,'warn');dcpAddFeedItem('⚡','Wind Advisory',`Gusts reaching ${gusts}km/h`,'med');}
+    if(gusts>80&&rain>10){score+=3;threats.push('Tornado conditions');activateChip(4);dcpAddFeedItem('🌪️','Tornado Risk',`Severe gusts+precipitation`,'high');}
+    if(temp<-10){score+=2;threats.push('Blizzard/Extreme cold');activateChip(5);dcpAddFeedItem('❄️','Extreme Cold Alert',`Temperature ${temp}°C`,'high');}
+    else if(temp<0){score+=1;threats.push('Freezing');activateChip(5,'warn');dcpAddFeedItem('❄️','Freezing Advisory',`Temp ${temp}°C`,'med');}
+    if(visibility<500){score+=1;threats.push('Dense fog');activateChip(6,'warn');dcpAddFeedItem('🌫️','Dense Fog Advisory',`Visibility ${visibility}m`,'med');}
+    if(humidity<20&&rain<1&&temp>30){score+=1;threats.push('Drought');activateChip(7,'warn');dcpAddFeedItem('🏜️','Drought Advisory',`Humidity ${humidity}%`,'med');}
+    if(threats.length===0)dcpAddFeedItem('✅','All Clear','No significant threats detected','low');
+    const level=score>=6?'HIGH':score>=3?'MEDIUM':'LOW';
+    const badge=document.getElementById('riskBadge');
+    badge.className=`risk-badge ${level}`;
+    document.getElementById('riskLevelText').textContent=level;
+    document.getElementById('riskDetails').textContent=threats.join(' • ')||'All conditions normal';
+    dcpLogEvent(`Risk assessed: ${level} (score ${score})`,level==='HIGH'?'high':level==='MEDIUM'?'med':'low');
+  }catch(e){document.getElementById('riskBadge').className='risk-badge STANDBY';document.getElementById('riskLevelText').textContent='ERROR';dcpLogEvent('Weather API failed: '+e.message,'high');}
+}
+
+async function dcpLoadFacilities(){
+  try{
+    const url=`https://overpass-api.de/api/interpreter?data=[out:json];(node["amenity"="hospital"](around:5000,${userLat},${userLon});node["amenity"="shelter"](around:5000,${userLat},${userLon});node["amenity"="fire_station"](around:5000,${userLat},${userLon});node["amenity"="police"](around:5000,${userLat},${userLon}););out;`;
+    const res=await fetch(url);const data=await res.json();
+    const typeMap={hospital:'🏥',shelter:'🛖',fire_station:'🚒',police:'🚓'};
+    const labelMap={hospital:'Hospital',shelter:'Shelter',fire_station:'Fire Station',police:'Police'};
+    const facIcon=L.divIcon({html:'<div style="background:#3b82f6;width:10px;height:10px;border-radius:50%;border:2px solid #fff"></div>',iconSize:[10,10],iconAnchor:[5,5]});
+    data.elements.forEach(p=>{
+      const type=p.tags.amenity,name=p.tags.name||labelMap[type]||'Emergency Center';
+      L.marker([p.lat,p.lon],{icon:facIcon}).addTo(dcpMap).bindPopup(`${typeMap[type]||'🏢'} <b>${name}</b>`);
+    });
+    dcpLogEvent(`${data.elements.length} nearby facilities loaded`);
+  }catch(e){dcpLogEvent('Facility data failed','med');}
+}
+
+async function dcpLoadGlobalDisasters(){
+  try{
+    const res=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+    const data=await res.json();let count=0;
+    data.features.slice(0,30).forEach(f=>{
+      const[lon,lat,depth]=f.geometry.coordinates,mag=f.properties.mag,place=f.properties.place;
+      const color=mag>=6?'#ef4444':mag>=4?'#f97316':'#eab308';
+      const eqIcon=L.divIcon({html:`<div style="background:${color};width:${6+mag*2}px;height:${6+mag*2}px;border-radius:50%;border:2px solid rgba(255,255,255,.5);opacity:.85"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+      L.marker([lat,lon],{icon:eqIcon}).addTo(dcpMap).bindPopup(`🌍 <b>Earthquake M${mag}</b><br>${place}<br>Depth:${depth.toFixed(1)}km`);
+      L.circle([lat,lon],{radius:mag*12000,color,weight:0,fillOpacity:.06}).addTo(dcpMap);count++;
+    });
+    dcpAddFeedItem('🌍','Global Earthquake Feed',`${data.features.length} earthquakes detected in past 24h`,'med');
+    dcpLogEvent(`${count} earthquake markers plotted`);
+  }catch(e){dcpLogEvent('Earthquake feed failed','med');}
+  const stormZones=[
+    {lat:20.5,lon:88.0,name:'Bay of Bengal Low',icon:'🌀',desc:'Active low pressure system'},
+    {lat:15.0,lon:80.0,name:'Andhra Coast Alert',icon:'⚡',desc:'Thunderstorm activity'},
+    {lat:23.0,lon:90.0,name:'Bangladesh Flood Zone',icon:'🌊',desc:'Heavy monsoon flooding'},
+    {lat:28.6,lon:77.2,name:'Delhi Heat Dome',icon:'🔥',desc:'Extreme heat 45°C+'},
+    {lat:19.0,lon:72.8,name:'Mumbai Rain Alert',icon:'🌧️',desc:'Heavy rainfall advisory'},
+  ];
+  const stIcon=col=>L.divIcon({html:`<div style="background:${col};width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 8px ${col}"></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+  stormZones.forEach(z=>{
+    if(dcpMap)L.marker([z.lat,z.lon],{icon:stIcon('#8b5cf6')}).addTo(dcpMap).bindPopup(`${z.icon} <b>${z.name}</b><br>${z.desc}`);
+    dcpAddFeedItem(z.icon,z.name,z.desc,'med');
+  });
+  dcpLogEvent('Regional disaster markers loaded');
+}
+
+function dcpSendSOS(){
+  if(!userLat){
+    // Try to get location for SOS even if not initialized
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(p=>{
+        userLat=p.coords.latitude;userLon=p.coords.longitude;
+        const msg=`🆘 SOS! I need emergency help!\nLocation: https://maps.google.com/?q=${userLat},${userLon}\nSent via ResQNet×DisasterCare PRO`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`);
+        dcpLogEvent('SOS sent','high');
+      },()=>{alert('Could not get location. Call 112 immediately!');});
+    }else{alert('Initialize system first or call 112!');} return;
+  }
+  const msg=`🆘 SOS! I need emergency help!\nMy location: https://maps.google.com/?q=${userLat},${userLon}\nSent via ResQNet×DisasterCare PRO`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`);
+  dcpLogEvent('SOS sent via WhatsApp','high');
+  showToast('🆘 SOS message sent!');
+}
+function callEmergency(){dcpLogEvent('Calling emergency 112','high');window.location.href='tel:112';}
+
+/* ══════════════════════════════════════════════════
+   CAMP SEARCH
+   ══════════════════════════════════════════════════ */
+let selectedArea='',selectedDistance='';
+function toggleDropdown(){const l=document.getElementById('areaList'),d=document.getElementById('distanceList');d.style.display='none';l.style.display=l.style.display==='block'?'none':'block';}
+function selectArea(a){selectedArea=a;document.getElementById('selectedArea').value=a;document.getElementById('areaBtn').textContent='📍 '+a;document.getElementById('areaList').style.display='none';selectedDistance='';document.getElementById('selectedDistance').value='';document.getElementById('distanceBtn').textContent='📏 Select Distance';}
+function toggleDistanceDropdown(){const l=document.getElementById('distanceList'),a=document.getElementById('areaList');a.style.display='none';l.style.display=l.style.display==='block'?'none':'block';}
+function selectDistance(d){selectedDistance=d;document.getElementById('selectedDistance').value=d+' km';document.getElementById('distanceBtn').textContent='📏 Within '+d+' km';document.getElementById('distanceList').style.display='none';}
+function searchCamps(){
+  const res=document.getElementById('results');res.innerHTML='';
+  if(!selectedArea&&!selectedDistance){res.innerHTML=`<div class="camp-card"><h3>Please select area and distance</h3><p>Choose a camp area and distance to see nearby volunteer camps.</p></div>`;return;}
+  const mx=selectedDistance?parseInt(selectedDistance,10):Infinity;
+  const filtered=camps.filter(c=>(selectedArea?c.area===selectedArea:true)&&c.distance<=mx);
+  if(!filtered.length){res.innerHTML=`<div class="camp-card"><h3>No camps found</h3><p>Try another area or increase the distance.</p></div>`;return;}
+  filtered.sort((a,b)=>a.distance-b.distance);
+  filtered.forEach((camp,i)=>{
+    const card=document.createElement('div');card.className='camp-card';card.style.animationDelay=(i*.06)+'s';
+    card.innerHTML=`<h3>📍 ${camp.area} Camp</h3><p><b>Address</b>${camp.address}</p><p><b>Distance</b>${camp.distance} km</p><p><b>Phone</b>${camp.phone}</p><p><b>Camp Head</b>${camp.head}</p><p><b>Min. Age</b>${camp.age}</p>`;
+    res.appendChild(card);
+  });
+  showToast(`✅ Found ${filtered.length} camp${filtered.length>1?'s':''}`);
+}
+function resetFilters(){selectedArea='';selectedDistance='';document.getElementById('selectedArea').value='';document.getElementById('selectedDistance').value='';document.getElementById('areaBtn').textContent='📍 Select Area';document.getElementById('distanceBtn').textContent='📏 Select Distance';document.getElementById('areaList').style.display='none';document.getElementById('distanceList').style.display='none';document.getElementById('results').innerHTML='';}
+
+const camps=[
+  {area:'Kolkata',distance:5,address:'Salt Lake Sector V, Kolkata - 700091',phone:'9876543210',head:'Mr. Roy',age:'18+'},
+  {area:'Kolkata',distance:8,address:'Park Street Area, Near Park Hotel, Kolkata - 700016',phone:'9123456780',head:'Ms. Sen',age:'18+'},
+  {area:'Kolkata',distance:12,address:'Dum Dum Cantonment, Near Airport, Kolkata - 700028',phone:'9988776655',head:'Mr. Ghosh',age:'20+'},
+  {area:'Kolkata',distance:15,address:'Newtown Action Area 1, Near Eco Park, Kolkata - 700156',phone:'9988112233',head:'Mr. Sharma',age:'18+'},
+  {area:'Kolkata',distance:18,address:'Rajarhat New Town, Near Haldiram, Kolkata - 700135',phone:'9988334455',head:'Ms. Patel',age:'18+'},
+  {area:'Kolkata',distance:20,address:'Bidhannagar Sector 1, Near City Centre, Kolkata - 700064',phone:'9988556677',head:'Mr. Nair',age:'21+'},
+  {area:'Howrah',distance:15,address:'Howrah Maidan, Near Howrah Bridge, Howrah - 711101',phone:'9090909090',head:'Mr. Das',age:'18+'},
+  {area:'Howrah',distance:18,address:'Shyampur Bazar, Near Shyampur Railway Station, Howrah - 711301',phone:'9090112233',head:'Ms. Dey',age:'18+'},
+  {area:'Howrah',distance:25,address:'Shibpur Botanical Garden Area, Howrah - 711102',phone:'9012345678',head:'Mr. Paul',age:'18+'},
+  {area:'Howrah',distance:30,address:'Vivekananda Nagar, Near Liluah Railway Station, Howrah - 711204',phone:'9090334455',head:'Mr. Singh',age:'18+'},
+  {area:'Howrah',distance:35,address:'Bally Municipality, Near Bally Halt, Howrah - 711201',phone:'9090556677',head:'Ms. Gupta',age:'20+'},
+  {area:'Durgapur',distance:50,address:'Durgapur Barrage, Near Damodar River, Durgapur - 713206',phone:'8899665544',head:'Mr. Verma',age:'18+'},
+  {area:'Durgapur',distance:60,address:'Steel City Area, Near Durgapur Steel Plant, Durgapur - 713205',phone:'8899776655',head:'Ms. Roy',age:'20+'},
+  {area:'Durgapur',distance:70,address:'City Center Mall Area, Durgapur - 713216',phone:'8899887766',head:'Mr. Kumar',age:'18+'},
+  {area:'Durgapur',distance:78,address:'Benachity Industrial Area, Durgapur - 713213',phone:'8877665544',head:'Mr. Dutta',age:'18+'},
+  {area:'Durgapur',distance:85,address:'Raghunathpur Township, Near NTPC Plant, Durgapur - 713212',phone:'8877776655',head:'Ms. Jena',age:'21+'},
+  {area:'Siliguri',distance:75,address:'Siliguri Junction Railway Station Area, Siliguri - 734001',phone:'8765432199',head:'Mr. Thakur',age:'18+'},
+  {area:'Siliguri',distance:95,address:'Pradhan Nagar, Near ISBT Bus Stand, Siliguri - 734003',phone:'8765432189',head:'Ms. Lama',age:'18+'},
+  {area:'Siliguri',distance:110,address:'Hill Cart Road, Near SNT Bus Stand, Siliguri - 734001',phone:'8765432109',head:'Mr. Sharma',age:'18+'},
+  {area:'Siliguri',distance:120,address:'Sevoke Road, Near Coronation Bridge, Siliguri - 734001',phone:'8654321098',head:'Ms. Verma',age:'18+'},
+  {area:'Asansol',distance:70,address:'Asansol Junction Railway Station, Asansol - 713301',phone:'8543210997',head:'Mr. Bose',age:'18+'},
+  {area:'Asansol',distance:85,address:'Raniganj Municipal Area, Near IISCO Steel Plant, Asansol - 713347',phone:'8543210987',head:'Mr. Banerjee',age:'21+'},
+  {area:'Asansol',distance:100,address:'Burnpur Township, Near SAIL Plant, Asansol - 713325',phone:'8543210977',head:'Mr. Singh',age:'21+'},
+  {area:'Asansol',distance:115,address:'Court Area, Near Asansol Court, Asansol - 713304',phone:'8432109876',head:'Mr. Khan',age:'18+'}
+];
+
+/* ══════════════════════════════════════════════════
+   VOLUNTEER PROFILES
+   ══════════════════════════════════════════════════ */
+const volunteers=[
+  {name:'Ayesha Roy',role:'Disaster Response Lead',location:'Kolkata',experience:'8 years',helped:124,rating:4.8,trustText:'10 people vouched',specialties:'Emergency triage, evacuation coordination',bio:'Leads first-response teams with calm focus and strong community trust.',phone:'9876543210'},
+  {name:'Ravi Das',role:'Logistics Coordinator',location:'Howrah',experience:'6 years',helped:98,rating:4.6,trustText:'9 people vouched',specialties:'Supply chain, camp setup',bio:'Organizes relief flows using strong local knowledge and quick response.',phone:'9123456780'},
+  {name:'Sana Gupta',role:'Medical Support Specialist',location:'Durgapur',experience:'10 years',helped:145,rating:4.9,trustText:'12 people vouched',specialties:'First aid, patient triage',bio:'Provides medical support and trains volunteers for safe care operations.',phone:'9988776655'},
+  {name:'Pranav Singh',role:'Community Outreach',location:'Siliguri',experience:'5 years',helped:80,rating:4.5,trustText:'8 people vouched',specialties:'Volunteer training, communications',bio:'Builds trust with families and coordinates messages across teams.',phone:'8765432199'},
+  {name:'Nisha Banerjee',role:'Operations Strategist',location:'Asansol',experience:'7 years',helped:110,rating:4.7,trustText:'11 people vouched',specialties:'Strategy, field coordination',bio:'Designs mission plans that keep volunteers safe and operations steady.',phone:'8543210997'}
+];
+function renderVolunteerProfiles(){
+  const container=document.getElementById('volunteerList');container.innerHTML='';
+  volunteers.forEach((v,i)=>{
+    const initials=v.name.split(' ').map(w=>w[0]).join('').slice(0,2);
+    container.innerHTML+=`<div class="volunteer-card" id="vol-card-${i}" onclick="toggleVolunteerDetails(${i})"><div class="vol-card-top"><div style="display:flex;align-items:center;gap:11px;"><div class="vol-avatar">${initials}</div><div class="vol-name">${v.name}</div></div><div class="vol-rating">⭐ ${v.rating}</div></div><div class="vol-role">${v.role}</div><div class="vol-location">📍 ${v.location}</div><div class="vol-summary">${v.experience} experience · ${v.helped} people helped</div><div class="vol-details"><p><b>Specialties:</b> ${v.specialties}</p><p><b>Bio:</b> ${v.bio}</p><p><b>Trust:</b> ${v.trustText}</p><button class="contact-btn" onclick="event.stopPropagation();showContactCard(${i})">📞 Contact Volunteer</button></div></div>`;
+  });
+}
+function toggleVolunteerDetails(i){document.getElementById(`vol-card-${i}`).classList.toggle('expanded');}
+function showContactCard(i){
+  const v=volunteers[i];
+  const ov=document.createElement('div');ov.className='contact-overlay';ov.onclick=()=>ov.remove();
+  const card=document.createElement('div');card.className='contact-card';card.onclick=e=>e.stopPropagation();
+  card.innerHTML=`<h3>${v.name}</h3><p class="role">${v.role}</p><div class="contact-info"><p>📞 ${v.phone}</p><p>📍 ${v.location}</p></div><div class="contact-buttons"><a href="tel:${v.phone}" class="call-btn">📞 Call</a><a href="https://wa.me/91${v.phone}" target="_blank" class="whatsapp-btn">💬 WhatsApp</a></div><p style="margin-top:12px;font-size:11.5px;color:var(--muted);">Click outside to close</p>`;
+  ov.appendChild(card);document.body.appendChild(ov);
+}
+
+/* ══════════════════════════════════════════════════
+   HELP / EMERGENCY GUIDE
+   ══════════════════════════════════════════════════ */
+function showHelp(type){
+  const ab=document.getElementById('adviceBox'),vr=document.getElementById('volunteerResults');
+  document.querySelectorAll('.help-options .option').forEach(o=>{o.classList.toggle('active',o.textContent.trim().toLowerCase().includes(type));});
+  const am={earthquake:'Drop, cover, and hold on. Stay away from windows and take shelter under sturdy furniture as soon as shaking begins.',fire:'Stay low to avoid smoke, use stairs, and keep your exit path clear. Never open hot doors without checking for heat first.',injury:'Check the scene for safety, apply pressure to bleeding wounds, immobilize broken limbs, and seek medical help immediately.',flood:'Move to higher ground, avoid walking through moving water, and unplug electrical equipment when safe to do so.',food:'Provide clean drinking water first; distribute food in small portions and focus on high-energy, non-perishable items.',shelter:'Find or build a dry, elevated shelter. Keep warm, protect against the elements, and respect local safety guidance.'};
+  const hm={earthquake:[{name:'Ayesha Roy',role:'Safety Trainer',note:'Teaches sheltering and earthquake drills.'},{name:'Sana Gupta',role:'Medical Specialist',note:'Provides first aid support after shakes.'}],fire:[{name:'Dr. Emily Carter',role:'Fire Safety Expert',note:'Guides safe evacuation and extinguisher use.'},{name:'Ravi Das',role:'Logistics Coordinator',note:'Helps manage exits and fire wardens.'}],injury:[{name:'Sana Gupta',role:'Medical Support Specialist',note:'Stabilizes injured people until help arrives.'},{name:'Pranav Singh',role:'Community Outreach',note:'Coordinates rapid medical response.'}],flood:[{name:'Maria Gonzalez',role:'Rescue Volunteer',note:'Supports evacuation to higher ground.'},{name:'Nisha Banerjee',role:'Operations Strategist',note:'Organizes flood relief distribution.'}],food:[{name:'Ravi Das',role:'Food Coordinator',note:'Distributes safe meals and clean water.'},{name:'Ayesha Roy',role:'Nutrition Lead',note:'Ensures emergency food support.'}],shelter:[{name:'Pranav Singh',role:'Shelter Manager',note:'Creates temporary safe resting spaces.'},{name:'Nisha Banerjee',role:'Field Operations Lead',note:'Coordinates shelter supplies.'}]};
+  ab.innerHTML=`<p>${am[type]||'Select a problem to get guidance.'}</p>`;
+  vr.innerHTML=hm[type].map(h=>`<div class="vol-card"><h3>${h.name}</h3><p>${h.role}</p><p>${h.note}</p></div>`).join('');
+}
+
+/* ══════════════════════════════════════════════════
+   LEARNING CENTER
+   ══════════════════════════════════════════════════ */
+let currentAnswer='';
+function showDisaster(type){
+  const dd=document.getElementById('dosDonts'),st=document.getElementById('steps'),sc=document.getElementById('scenarioText'),sa=document.getElementById('scenarioAnswer');
+  sa.classList.add('hidden');
+  if(type==='earthquake'){dd.innerHTML='<div class="box do"><h3>✔ Do</h3><p>Take cover under sturdy furniture</p><p>Stay indoors until shaking stops</p><p>Protect your head and neck</p></div><div class="box dont"><h3>✗ Don\'t</h3><p>Run outside during shaking</p><p>Use elevators</p></div>';st.innerHTML='<div class="step">1. Drop to the ground immediately</div><div class="step">2. Take cover under a table or desk</div><div class="step">3. Hold on until shaking stops</div>';sc.innerText='You are inside a building during an earthquake.';currentAnswer='Take cover under strong furniture, protect your head, and stay away from windows.';}
+  else if(type==='fire'){dd.innerHTML='<div class="box do"><h3>✔ Do</h3><p>Stay low to avoid smoke</p><p>Use stairs to exit the building</p></div><div class="box dont"><h3>✗ Don\'t</h3><p>Use elevators</p><p>Panic or block exits</p></div>';st.innerHTML='<div class="step">1. Stay low to avoid smoke inhalation</div><div class="step">2. Exit the building safely using stairs</div><div class="step">3. Call emergency services (101)</div>';sc.innerText='A fire breaks out in your building.';currentAnswer='Stay low, avoid smoke, and exit using stairs immediately.';}
+  else if(type==='flood'){dd.innerHTML='<div class="box do"><h3>✔ Do</h3><p>Move to higher ground immediately</p><p>Carry essential supplies</p></div><div class="box dont"><h3>✗ Don\'t</h3><p>Walk through moving flood water</p><p>Touch electrical wires or equipment</p></div>';st.innerHTML='<div class="step">1. Move immediately to higher ground</div><div class="step">2. Avoid all contact with flood water</div><div class="step">3. Stay informed via emergency alerts</div>';sc.innerText='Flood water is rising rapidly near your home.';currentAnswer='Move to higher ground immediately and avoid walking in water.';}
+}
+function toggleAnswer(){const a=document.getElementById('scenarioAnswer');if(a.classList.contains('hidden')){a.classList.remove('hidden');a.innerText=currentAnswer||'Please select a disaster type first.';}else a.classList.add('hidden');}
+function voteHelpful(b){let c=parseInt(b.innerText.match(/\d+/)[0]);c++;b.innerText=`Helpful (${c})`;showToast('Thanks for your feedback! 👍');}
+function voteNotHelpful(b){let c=parseInt(b.innerText.match(/\d+/)[0]);c++;b.innerText=`Not Helpful (${c})`;}
+function rateSuggestion(con,rating){
+  const stars=con.parentElement.querySelectorAll('.stars'),score=con.parentElement.querySelector('.rating-score');
+  stars.forEach((s,i)=>{if(i<rating){s.classList.add('active');s.innerText='★';}else{s.classList.remove('active');s.innerText='☆';}});
+  score.innerText=`(${rating}/5)`;showToast(`Rated ${rating}/5 ⭐`);
+}
+function addPost(){
+  const name=document.getElementById('postName').value,type=document.getElementById('postType').value,msg=document.getElementById('postMessage').value;
+  if(!name||!msg){showToast('Please fill in all fields.');return;}
+  const pc=document.getElementById('postsContainer'),pd=document.createElement('div');
+  pd.className='post-item';pd.style.animation='card-appear .4s ease both';
+  pd.innerHTML=`<div class="post-header"><strong style="font-family:'Playfair Display',serif;font-size:16px;">${name}</strong><span class="${type.toLowerCase()}-tag">${type}</span></div><p style="margin-top:8px;color:var(--muted);font-size:14px;line-height:1.75;">${msg}</p><div class="post-actions" style="margin-top:11px;"><button class="helpful-btn" onclick="voteHelpful(this)">Helpful (0)</button><button class="not-helpful-btn" onclick="voteNotHelpful(this)">Not Helpful (0)</button></div>`;
+  pc.prepend(pd);document.getElementById('postName').value='';document.getElementById('postMessage').value='';
+  showToast('Post shared with the community! 🎉');
+}
+
+/* ══════════════════════════════════════════════════
+   DMS COMMUNITY / REPORTS
+   ══════════════════════════════════════════════════ */
+let rajPosts=[];
+document.getElementById('raj-weather').innerText=['🌧 Rainy 28°C','☀ Sunny 34°C','⛅ Cloudy 30°C','🌩 Thunderstorm 26°C','🌤 Partly Cloudy 32°C'][Math.floor(Math.random()*5)];
+function rajGetCategoryImage(cat){if(cat==='Flood')return'https://images.unsplash.com/photo-1547683905-f686c993aae5?w=300&auto=format';if(cat==='Fire')return'https://images.unsplash.com/photo-1505678261036-a3fcc5e884ee?w=300&auto=format';if(cat==='Earthquake')return'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=300&auto=format';return'';}
+function rajTimeAgo(date){const s=Math.floor((new Date()-date)/1000);if(s<60)return s+' sec ago';const m=Math.floor(s/60);if(m<60)return m+' min ago';return Math.floor(m/60)+' hr ago';}
+function rajGetLocation(){navigator.geolocation.getCurrentPosition(p=>{document.getElementById('raj-locationInput').value=p.coords.latitude.toFixed(3)+', '+p.coords.longitude.toFixed(3);showToast('📍 Location detected!');},()=>showToast('Could not get location'));}
+function rajAddPost(){
+  const text=document.getElementById('raj-postInput').value,loc=document.getElementById('raj-locationInput').value,cat=document.getElementById('raj-categoryInput').value,sev=document.getElementById('raj-severityInput').value,file=document.getElementById('raj-imageInput').files[0];
+  if(!text){showToast('Please describe the incident');return;}
+  const img=file?URL.createObjectURL(file):rajGetCategoryImage(cat);
+  rajPosts.unshift({text,loc,cat,severity:sev,img,time:new Date(),likes:0,comments:[]});
+  rajRenderPosts();document.getElementById('raj-postInput').value='';showToast('✅ Report posted!');
+}
+function rajLikePost(i){rajPosts[i].likes++;rajRenderPosts();}
+function rajAddComment(i){const inp=document.getElementById('rc'+i);if(!inp.value)return;rajPosts[i].comments.push(inp.value);rajRenderPosts();}
+function rajGetColor(cat){return cat==='Flood'?'#70c8f0':cat==='Fire'?'#f0a878':cat==='Earthquake'?'#f0d878':'#78e0c0';}
+function rajRenderPosts(){
+  document.getElementById('raj-posts').innerHTML=rajPosts.map((p,i)=>`<div class="raj-post"><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><b style="color:${rajGetColor(p.cat)}">${p.cat}</b><span style="font-size:11px;opacity:.65;">${p.severity}</span></div><p style="margin:3px 0;font-size:13px;">${p.text}</p><small style="opacity:.6;font-size:11.5px;">📍 ${p.loc||'Unknown'} · ${rajTimeAgo(p.time)}</small>${p.img?`<img src="${p.img}" alt="${p.cat}">`:''}<button onclick="rajLikePost(${i})" style="margin-top:7px;background:rgba(255,255,255,.1);border:none;color:#fff;padding:4px 12px;border-radius:999px;cursor:pointer;font-size:12px;">👍 ${p.likes}</button><div style="margin-top:5px;display:flex;gap:6px;"><input id="rc${i}" placeholder="Add comment..." style="color:#fff;flex:1;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);padding:5px 9px;border-radius:6px;font-size:12px;"><button onclick="rajAddComment(${i})" style="background:var(--sky-mid);border:none;color:#fff;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px;">Post</button></div>${p.comments.map(c=>`<div class="raj-comment">💬 ${c}</div>`).join('')}</div>`).join('');
+}
+// Seed starter posts
+for(let i=1;i<=6;i++){const cat=['Flood','Fire','Accident','Earthquake'][i%4];rajPosts.push({text:'Detailed disaster report #'+i,loc:'Area '+i,cat,severity:['Low','Medium','High'][i%3],img:rajGetCategoryImage(cat),time:new Date(Date.now()-i*60000),likes:Math.floor(Math.random()*10),comments:['Stay safe']});}
+rajRenderPosts();
+
+function rajTriggerAlert(){
+  document.getElementById('raj-alertText').innerText='⚠ Flood Alert! Move to higher ground immediately.';
+  document.getElementById('raj-alertText').style.color='var(--red)';
+  showToast('🚨 Emergency Alert Issued!');
+}
+
+/* ══════════════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded',renderVolunteerProfiles);
+</script>
+</body>
+</html>
